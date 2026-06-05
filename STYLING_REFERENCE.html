@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OBSIDIAN - Visual Reference Guide</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&family=Syne:wght@700;800&display=swap" rel="stylesheet">
+    
+    <style>
+        :root {
+            /* 1. PALETTE DE COULEURS [cite: 1, 2] */
+            --color-bg-void: #010204; /* Fond Abyssal */
+            --color-glass: rgba(255, 255, 255, 0.02);
+            --color-glass-border: rgba(255, 255, 255, 0.08);
+            
+            /* Accents corrigés : Bleu Électrique et Gradient Magma [cite: 2] */
+            --color-electric-blue: #00A3FF; /* Bleu plus pur, moins cyan */
+            --color-magma: #FF5F00; /* Terracotta Radiant [cite: 2] */
+            --grad-magma: linear-gradient(135deg, #FF5F00 0%, #A1665A 100%);
+            
+            /* 2. TYPOGRAPHIE  */
+            --font-display: 'Syne', sans-serif; /* Titres massifs */
+            --font-body: 'Inter', sans-serif;  /* Lecture technique */
+            
+            --trans-smooth: all 0.6s cubic-bezier(0.19, 1, 0.22, 1);
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: var(--font-body);
+            background-color: var(--color-bg-void);
+            color: #FFFFFF;
+            line-height: 1.6;
+            overflow-x: hidden;
+        }
+
+        /* AMBIANCE : LIGHT LEAKS EN ORBITE */
+        .orbit-bg {
+            position: fixed; top: 50%; left: 50%; width: 150vw; height: 150vh;
+            transform: translate(-50%, -50%); z-index: -1;
+            animation: globalRotate 40s infinite linear;
+        }
+        .leak { position: absolute; width: 60vw; height: 60vw; border-radius: 50%; filter: blur(180px); opacity: 0.07; }
+        .leak-1 { top: 0; left: 20%; background: var(--color-magma); }
+        .leak-2 { bottom: 0; right: 20%; background: var(--color-electric-blue); }
+
+        @keyframes globalRotate { from { transform: translate(-50%, -50%) rotate(0deg); } to { transform: translate(-50%, -50%) rotate(360deg); } }
+
+        .container { max-width: 1200px; margin: 0 auto; padding: 4rem 2rem; }
+
+        /* SECTIONS DU GUIDE */
+        .guide-section { margin-bottom: 8rem; }
+        .section-label { font-size: 0.7rem; letter-spacing: 5px; color: var(--color-magma); text-transform: uppercase; margin-bottom: 2rem; display: block; }
+
+        /* =========================================
+           LIBRAIRIE TYPOGRAPHIQUE 
+           ========================================= */
+        h1 { font-family: var(--font-display); font-size: 6rem; line-height: 0.8; text-transform: uppercase; letter-spacing: -4px; margin-bottom: 1rem; }
+        h2 { font-family: var(--font-display); font-size: 3.5rem; text-transform: uppercase; letter-spacing: -2px; margin-bottom: 1rem; }
+        h3 { font-family: var(--font-display); font-size: 1.8rem; text-transform: uppercase; color: var(--color-electric-blue); margin-bottom: 1rem; }
+        h4 { font-family: var(--font-display); font-size: 1.1rem; text-transform: uppercase; letter-spacing: 3px; color: #fff; margin-bottom: 1rem; }
+        h5 { font-family: var(--font-body); font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 4px; opacity: 0.4; }
+
+        .subtitle { font-size: 1.2rem; opacity: 0.5; font-weight: 300; margin-bottom: 2rem; }
+
+        /* =========================================
+           BIBLIOTHÈQUE DE COMPOSANTS 
+           ========================================= */
+        .glass-panel {
+            background: var(--color-glass);
+            backdrop-filter: blur(40px);
+            border: 1px solid var(--color-glass-border);
+            padding: 3rem;
+            position: relative;
+            transition: var(--trans-smooth);
+        }
+
+        /* Séparateurs */
+        .sep-scan { height: 1px; background: var(--color-glass-border); margin: 3rem 0; position: relative; overflow: hidden; }
+        .sep-scan::after { 
+            content: ''; position: absolute; left: -100%; top: 0; width: 40%; height: 100%; 
+            background: linear-gradient(90deg, transparent, var(--color-electric-blue), transparent);
+            animation: scanLine 5s infinite ease-in-out;
+        }
+        @keyframes scanLine { to { left: 100%; } }
+
+        /* Onglets */
+        .tabs-container { display: flex; gap: 3rem; border-bottom: 1px solid var(--color-glass-border); margin-bottom: 3rem; }
+        .tab-trigger { padding-bottom: 1rem; cursor: pointer; opacity: 0.3; font-size: 0.8rem; letter-spacing: 2px; text-transform: uppercase; transition: 0.3s; }
+        .tab-trigger.active { opacity: 1; border-bottom: 2px solid var(--color-magma); }
+
+        /* Formulaires & Sliders */
+        .slider-ui { -webkit-appearance: none; width: 100%; height: 2px; background: rgba(255,255,255,0.1); margin: 2rem 0; }
+        .slider-ui::-webkit-slider-thumb { -webkit-appearance: none; width: 14px; height: 14px; background: var(--color-magma); box-shadow: 0 0 15px var(--color-magma); cursor: pointer; }
+
+        /* Boutons [cite: 4] */
+        .btn-flex { display: flex; gap: 1.5rem; }
+        .btn-base { padding: 1.2rem 2.5rem; font-family: var(--font-display); font-size: 0.8rem; text-transform: uppercase; letter-spacing: 3px; cursor: pointer; border: none; transition: var(--trans-smooth); border-radius: 2px; }
+        .btn-solid { background: #fff; color: #000; }
+        .btn-outline { background: transparent; color: #fff; border: 1px solid var(--color-glass-border); }
+        .btn-base:hover { transform: translateY(-5px); box-shadow: 0 15px 30px rgba(0,0,0,0.5); }
+
+        /* Graphique */
+        .data-bars { display: flex; align-items: flex-end; gap: 10px; height: 150px; }
+        .bar-item { flex: 1; background: rgba(255,255,255,0.05); transition: 1s ease; }
+        .bar-item.highlight { background: var(--grad-magma); }
+
+    </style>
+</head>
+<body>
+
+    <div class="orbit-bg">
+        <div class="leak leak-1"></div>
+        <div class="leak leak-2"></div>
+    </div>
+
+    <div class="container">
+        
+        <header class="guide-section">
+            <h5>Project: Belle // Version: 1.0.0 </h5>
+            <h1>Visual<br>Reference</h1>
+            <p class="subtitle">Charte graphique Obsidian : Un langage visuel basé sur la transparence, le mouvement orbital et le contraste spectral.</p>
+        </header>
+
+        <section class="guide-section">
+            <span class="section-label">01 _ Typographic Hierarchy</span>
+            <div class="glass-panel">
+                <h1>H1 Display Max</h1>
+                <h2>H2 Section Title</h2>
+                <h3>H3 Module Heading</h3>
+                <h4>H4 Functional Label</h4>
+                <h5>H5 Tactical Metadata</h5>
+                <div class="sep-scan"></div>
+                <p class="subtitle">Corps de texte : Inter Regular. Conçu pour une lisibilité maximale sur des interfaces à forte densité de données[cite: 3].</p>
+            </div>
+        </section>
+
+        <section class="guide-section">
+            <span class="section-label">02 _ Functional Components</span>
+            
+            <div style="display: grid; grid-template-columns: 1fr 1.5fr; gap: 3rem;">
+                
+                <div class="glass-panel">
+                    <h4>Controls</h4>
+                    <p class="subtitle" style="font-size: 0.9rem;">Sliders de calibration biogénique.</p>
+                    <input type="range" class="slider-ui" min="0" max="100" value="70">
+                    <div class="btn-flex" style="flex-direction: column;">
+                        <button class="btn-base btn-solid">Initialize Sync</button>
+                        <button class="btn-base btn-outline">Export Archives</button>
+                    </div>
+                </div>
+
+                <div class="glass-panel">
+                    <nav class="tabs-container">
+                        <div class="tab-trigger active">Real-time</div>
+                        <div class="tab-trigger">Molecular</div>
+                        <div class="tab-trigger">Logs</div>
+                    </nav>
+                    
+                    <h4>Data Visualization</h4>
+                    <div class="data-bars">
+                        <div class="bar-item" style="height: 40%;"></div>
+                        <div class="bar-item highlight" style="height: 85%;"></div>
+                        <div class="bar-item" style="height: 60%;"></div>
+                        <div class="bar-item highlight" style="height: 95%;"></div>
+                        <div class="bar-item" style="height: 30%;"></div>
+                    </div>
+                </div>
+
+            </div>
+        </section>
+
+        <section class="guide-section">
+            <span class="section-label">03 _ Color Spectrum</span>
+            <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 1.5rem;">
+                <div style="text-align: center;">
+                    <div style="height: 100px; background: var(--color-bg-void); border: 1px solid var(--color-glass-border); margin-bottom: 10px;"></div>
+                    <h5>Void Black </h5>
+                </div>
+                <div style="text-align: center;">
+                    <div style="height: 100px; background: var(--color-electric-blue); margin-bottom: 10px;"></div>
+                    <h5>Electric Blue </h5>
+                </div>
+                <div style="text-align: center;">
+                    <div style="height: 100px; background: var(--color-magma); margin-bottom: 10px;"></div>
+                    <h5>Magma Orange [cite: 2]</h5>
+                </div>
+                <div style="text-align: center;">
+                    <div style="height: 100px; background: var(--grad-magma); margin-bottom: 10px;"></div>
+                    <h5>Terracotta Gradient [cite: 2]</h5>
+                </div>
+            </div>
+        </section>
+
+    </div>
+
+    <script>
+        // Interaction basique pour la démonstration de la bibliothèque
+        document.querySelectorAll('.tab-trigger').forEach(tab => {
+            tab.addEventListener('click', function() {
+                document.querySelectorAll('.tab-trigger').forEach(t => t.classList.remove('active'));
+                this.classList.add('active');
+                
+                // Simulation de changement de données
+                document.querySelectorAll('.bar-item').forEach(bar => {
+                    bar.style.height = Math.floor(Math.random() * 90 + 10) + '%';
+                });
+            });
+        });
+    </script>
+
+</body>
+</html>
