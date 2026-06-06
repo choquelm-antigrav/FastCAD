@@ -1886,7 +1886,9 @@
 
           const dateEl = document.createElement('span');
           dateEl.className = 'lib-row-date';
-          dateEl.textContent = entry.date;
+          dateEl.textContent = entry.date.length === 10
+            ? entry.date.slice(5).replace('-', '/')
+            : entry.date;
 
           const actions = document.createElement('div');
           actions.className = 'lib-row-actions';
