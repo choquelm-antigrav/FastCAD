@@ -4,6 +4,162 @@ from __future__ import annotations
 
 LOW_CONFIDENCE_THRESHOLD = 0.25
 
+# ---------------------------------------------------------------------------
+# Sheet Metal Design — inline API knowledge (no PDF required)
+# ---------------------------------------------------------------------------
+
+_SM_API_KNOWLEDGE = """\
+=== CATIA V5 Generative Sheet Metal Design — CATScript API Reference ===
+
+── FACTORY ACCESS ──────────────────────────────────────────────────────────
+  Dim oSMF As SheetMetalFactory
+  Set oSMF = oPart.GetTechnologicalObject("SheetMetalFactory")
+
+── GLOBAL PARAMETERS ───────────────────────────────────────────────────────
+  Dim oParams As SheetMetalParameters
+  Set oParams = oSMF.SheetMetalParameters
+  oParams.Thickness.Value  = 2.0   ' épaisseur tôle mm
+  oParams.BendRadius.Value = 3.0   ' rayon de pli par défaut mm
+  oParams.BendAngle.Value  = 90.0  ' angle de pli par défaut degrés (optionnel)
+
+── BASE WALL (paroi de base à partir d'un esquisse) ────────────────────────
+  Dim oSketch As Sketch
+  Set oSketch = oPart.Sketches.Add(oPart.OriginPlanes.Item(2)) ' plan XY = Item(2)
+  Dim oFact2D As Factory2D
+  Set oFact2D = oSketch.OpenEdition()
+  ' Dessiner un rectangle fermé (4 lignes)
+  oFact2D.CreateLine 0, 0, 200, 0
+  oFact2D.CreateLine 200, 0, 200, 100
+  oFact2D.CreateLine 200, 100, 0, 100
+  oFact2D.CreateLine 0, 100, 0, 0
+  oSketch.CloseEdition
+  Dim oWall As Wall
+  Set oWall = oSMF.AddNewWall(oSketch)   ' crée la paroi de base
+
+── FLANGE (pliage sur arête existante) ─────────────────────────────────────
+  ' Sélectionner une arête de la paroi via Selection
+  CATIA.ActiveDocument.Selection.Clear
+  CATIA.ActiveDocument.Selection.Add oWall
+  Dim oFlange As Flange
+  Set oFlange = oSMF.AddNewFlange()      ' la sélection active fournit l'arête
+  oFlange.Angle.Value  = 90.0            ' angle de repli (degrés)
+  oFlange.Length.Value = 30.0            ' hauteur de la bride (mm)
+  ' Override local bend radius (optionnel)
+  ' oFlange.BendRadius.Value = 2.0
+
+── ADDITIONAL WALL ON EDGE ─────────────────────────────────────────────────
+  ' Paroi supplémentaire posée sur une arête (sans sélection)
+  Dim oWall2 As Wall
+  Set oWall2 = oSMF.AddNewWallOnEdge()   ' nécessite une sélection d'arête au préalable
+
+── CUTOUT (découpe dans la tôle depuis esquisse) ────────────────────────────
+  Dim oSkCut As Sketch
+  Set oSkCut = oPart.Sketches.Add(oPart.OriginPlanes.Item(2))
+  Dim oF2 As Factory2D
+  Set oF2 = oSkCut.OpenEdition()
+  oF2.CreateClosedProfile  ' ou dessiner profil de découpe
+  oSkCut.CloseEdition
+  Dim oCut As Cutout
+  Set oCut = oSMF.AddNewCutout(oSkCut)
+
+── CIRCULAR STAMP (bossage circulaire) ──────────────────────────────────────
+  ' Esquisse = centre du stamp (cercle ou point de référence)
+  Dim oCircStamp As CircStamp
+  Set oCircStamp = oSMF.AddNewCircStamp(oSketchStamp)
+  oCircStamp.Height.Value         = 5.0   ' hauteur du bossage mm
+  oCircStamp.DiameterBottom.Value = 30.0  ' diamètre base mm
+  oCircStamp.DiameterTop.Value    = 25.0  ' diamètre sommet mm
+  oCircStamp.Radius.Value         = 2.0   ' rayon de congé mm
+  oCircStamp.DraftAngle.Value     = 15.0  ' dépouille degrés
+
+── SURFACE STAMP (bossage surfacique) ───────────────────────────────────────
+  Dim oSurfStamp As SurfaceStamp
+  Set oSurfStamp = oSMF.AddNewSurfaceStamp(oSketchStamp)
+  oSurfStamp.Height.Value     = 4.0
+  oSurfStamp.DraftAngle.Value = 10.0
+  oSurfStamp.Radius.Value     = 1.5
+
+── BRIDGE (pont entre deux découpes) ────────────────────────────────────────
+  Dim oBridge As Bridge
+  Set oBridge = oSMF.AddNewBridge(oSketch1, oSketch2)
+  oBridge.Height.Value = 3.0
+  oBridge.Width.Value  = 8.0
+  oBridge.Radius.Value = 1.0
+
+── JOGGLE (ressaut) ─────────────────────────────────────────────────────────
+  Dim oJoggle As Joggle
+  Set oJoggle = oSMF.AddNewJoggle()   ' sélection d'arête requise
+  oJoggle.Offset.Value = 6.0          ' décalage mm
+  oJoggle.Length.Value = 20.0         ' longueur du ressaut mm
+  oJoggle.Radius.Value = 3.0
+
+── BEND / UNBEND (plier / déplier) ──────────────────────────────────────────
+  Dim oBend As Bend
+  Set oBend = oSMF.AddNewBend()       ' sélection de 2 arêtes requise
+  ' Pour obtenir le développé : oSMF.AddNewUnfold()
+
+── CORNER RELIEF ────────────────────────────────────────────────────────────
+  Dim oCorner As Corner
+  Set oCorner = oSMF.AddNewCorner()   ' sélection du coin (vertex) requise
+  oCorner.ReliefType = 1              ' 1=carré, 2=rond, 3=triangulaire
+
+── HEM FLANGE (ourlet) ──────────────────────────────────────────────────────
+  Dim oHem As HemFlange
+  Set oHem = oSMF.AddNewHemFlange()  ' sélection d'arête requise
+  oHem.HemType  = 1                  ' 1=flat hem, 2=open hem, 3=rope hem
+  oHem.Length.Value = 8.0
+  oHem.Gap.Value    = 0.5
+
+── STIFFENER RIB (raidisseur) ───────────────────────────────────────────────
+  Dim oRib As StiffenerRib
+  Set oRib = oSMF.AddNewStiffenerRib(oSketchRib)
+  oRib.Depth.Value  = 5.0
+  oRib.Radius.Value = 2.0
+  oRib.DraftAngle.Value = 10.0
+
+── COMPLETE EXAMPLE — Bracket (équerre 90°) ─────────────────────────────────
+Option Explicit
+Sub CATMain()
+    Dim oDoc    As PartDocument  : Set oDoc  = CATIA.ActiveDocument
+    Dim oPart   As Part          : Set oPart = oDoc.Part
+    Dim oSMF    As SheetMetalFactory
+    Set oSMF = oPart.GetTechnologicalObject("SheetMetalFactory")
+
+    ' Paramètres matière
+    Dim oP As SheetMetalParameters : Set oP = oSMF.SheetMetalParameters
+    oP.Thickness.Value  = 2.0   ' tôle 2mm
+    oP.BendRadius.Value = 3.0   ' rayon intérieur 3mm
+
+    ' Esquisse paroi de base (XY) : 150×80mm
+    Dim oSk As Sketch
+    Set oSk = oPart.Sketches.Add(oPart.OriginPlanes.Item(2))
+    Dim oF As Factory2D : Set oF = oSk.OpenEdition()
+    oF.CreateLine   0,  0, 150,  0
+    oF.CreateLine 150,  0, 150, 80
+    oF.CreateLine 150, 80,   0, 80
+    oF.CreateLine   0, 80,   0,  0
+    oSk.CloseEdition
+
+    Dim oWall As Wall : Set oWall = oSMF.AddNewWall(oSk)
+
+    oPart.Update
+End Sub
+
+── COMPLETE EXAMPLE — Box tray (bac 4 brides) ───────────────────────────────
+' Pattern : paroi de base + 4 brides de 25mm à 90°
+' Chaque flange nécessite une sélection d'arête différente avant AddNewFlange()
+' → Itérer sur les 4 arêtes via Selection ou GetBoundary sur le Wall.
+"""
+
+_SM_KEYWORDS = {
+    "sheet metal", "tôle", "tole", "bride", "flange", "pliage", "pli",
+    "emboutissage", "stamp", "bossage", "découpe tôle", "cutout tôle",
+    "sheetmetal", "sheet_metal", "développé", "develope", "unfold",
+    "joggle", "ressaut", "ourlet", "hem", "raidisseur", "stiffener",
+    "bend radius", "rayon de pli", "épaisseur tôle", "tôlerie",
+    "bracket", "equerre", "équerre", "boîtier tôle",
+}
+
 _SYSTEM_TEMPLATE = """\
 You are an expert CATIA V5 R27 automation engineer. Your role is to ALWAYS generate \
 a complete, syntactically correct {script_type} script. Never refuse to generate.
@@ -54,6 +210,10 @@ def build_prompt(
         or max(c["score"] for c in retrieved_chunks) < LOW_CONFIDENCE_THRESHOLD
     )
 
+    # Inject Sheet Metal inline knowledge when relevant
+    query_lower = user_query.lower()
+    is_sheetmetal = any(kw in query_lower for kw in _SM_KEYWORDS)
+
     if retrieved_chunks:
         context_lines = []
         for i, chunk in enumerate(retrieved_chunks, 1):
@@ -63,6 +223,9 @@ def build_prompt(
         context = "\n\n".join(context_lines)
     else:
         context = "(No relevant know-how found in the document corpus.)"
+
+    if is_sheetmetal:
+        context = _SM_API_KNOWLEDGE + "\n\n" + context
 
     prompt = _SYSTEM_TEMPLATE.format(
         script_type=script_type.upper(),

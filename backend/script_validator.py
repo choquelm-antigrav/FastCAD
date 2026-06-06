@@ -92,6 +92,22 @@ _CATIA_API: set[str] = {
     "AddFormula", "AddExternalFile",
     "Rename", "Hide", "Show",
     "DirectPointers",
+    # Sheet Metal Design (SMD)
+    "SheetMetalFactory", "SheetMetalParameters",
+    "AddNewWall", "AddNewWallOnEdge",
+    "AddNewFlange", "AddNewHemFlange", "AddNewUserFlange",
+    "AddNewCutout",
+    "AddNewCircStamp", "AddNewSurfaceStamp",
+    "AddNewBridge", "AddNewJoggle",
+    "AddNewBend", "AddNewUnfold", "AddNewFold",
+    "AddNewCorner", "AddNewChamfer",
+    "AddNewStiffenerRib", "AddNewFlangeHole",
+    "Wall", "Flange", "HemFlange", "UserFlange",
+    "Cutout", "CircStamp", "SurfaceStamp",
+    "Bridge", "Joggle", "Bend", "Corner", "StiffenerRib",
+    "DiameterBottom", "DiameterTop", "DraftAngle", "HemType",
+    "BendRadius", "BendAngle", "KFactor", "Thickness",
+    "ReliefType", "Offset",
     # Electrical (EHI / EHA)
     "ElecHarnessInstallation", "ElecHarnessBundle",
     "ElecBundleSegment", "ElecProtection",
@@ -132,7 +148,18 @@ _COMMON_TYPOS: dict[str, str] = {
     "AddPattern":           "AddNewRectPattern ou AddNewCircPattern",
     "SetDiam":              "SetDiameter",
     "AddNewElecBundleSegment": "ElecBundleSegment (depuis ElecHarnessInstallation)",
-    "AddElecBundleSegment": "ElecBundleSegment",
+    "AddElecBundleSegment":    "ElecBundleSegment",
+    # Sheet Metal typos
+    "AddWall":              "AddNewWall",
+    "AddFlange":            "AddNewFlange",
+    "AddNewBride":          "AddNewFlange",
+    "AddStamp":             "AddNewCircStamp ou AddNewSurfaceStamp",
+    "AddNewStamp":          "AddNewCircStamp ou AddNewSurfaceStamp",
+    "AddCutout":            "AddNewCutout",
+    "SheetMetal":           "SheetMetalFactory (via GetTechnologicalObject)",
+    "GetSheetMetal":        "GetTechnologicalObject(\"SheetMetalFactory\")",
+    "SetThickness":         "oParams.Thickness.Value = X",
+    "SetBendRadius":        "oParams.BendRadius.Value = X",
 }
 
 # Regex for method calls: .MethodName(
@@ -337,6 +364,60 @@ def _validate_ehi(script: str) -> list[Issue]:
 
 
 # ---------------------------------------------------------------------------
+# Sheet Metal validator
+# ---------------------------------------------------------------------------
+
+def _validate_sheetmetal(script: str) -> list[Issue]:
+    issues = _validate_catscript(script)
+
+    # E030 : SheetMetalFactory access
+    if "GetTechnologicalObject" not in script or "SheetMetalFactory" not in script:
+        issues.append(Issue(Severity.error, None, "E030",
+                            "SheetMetalFactory introuvable — "
+                            "utiliser : oPart.GetTechnologicalObject(\"SheetMetalFactory\")"))
+
+    # E031 : SheetMetalParameters (épaisseur)
+    if "SheetMetalParameters" not in script and "Thickness" not in script:
+        issues.append(Issue(Severity.warning, None, "E031",
+                            "SheetMetalParameters non initialisé — Thickness et BendRadius non définis"))
+
+    # E032 : au moins une paroi de base
+    if "AddNewWall" not in script:
+        issues.append(Issue(Severity.warning, None, "E032",
+                            "AddNewWall introuvable — aucune paroi de base créée"))
+
+    # E033 : esquisse fermée requise
+    if "CloseEdition" not in script:
+        issues.append(Issue(Severity.warning, None, "E033",
+                            "CloseEdition introuvable — les esquisses doivent être fermées avant AddNewWall"))
+
+    # I030 : résumé des features SMD
+    smd_features = {
+        "AddNewWall": "Wall", "AddNewFlange": "Flange", "AddNewHemFlange": "HemFlange",
+        "AddNewCutout": "Cutout", "AddNewCircStamp": "CircStamp",
+        "AddNewSurfaceStamp": "SurfaceStamp", "AddNewBridge": "Bridge",
+        "AddNewJoggle": "Joggle", "AddNewBend": "Bend", "AddNewStiffenerRib": "Rib",
+    }
+    found = [label for method, label in smd_features.items() if method in script]
+    if found:
+        issues.append(Issue(Severity.info, None, "I030",
+                            f"Features SMD détectées : {', '.join(found)}"))
+
+    return issues
+
+
+# ---------------------------------------------------------------------------
+# Auto-detect Sheet Metal scripts
+# ---------------------------------------------------------------------------
+
+_SM_MARKERS = {"SheetMetalFactory", "SheetMetalParameters", "AddNewWall", "AddNewFlange",
+               "AddNewCircStamp", "AddNewSurfaceStamp", "AddNewCutout", "AddNewJoggle"}
+
+def _is_sheetmetal_script(script: str) -> bool:
+    return sum(1 for m in _SM_MARKERS if m in script) >= 2
+
+
+# ---------------------------------------------------------------------------
 # Public entry-point
 # ---------------------------------------------------------------------------
 
@@ -361,6 +442,10 @@ def validate(script: str, script_type: str) -> list[Issue]:
         raw = _validate_ekl(script)
     elif "ehi" in st or "eha" in st:
         raw = _validate_ehi(script)
+    elif "sheetmetal" in st or "sheet_metal" in st or "sheet metal" in st:
+        raw = _validate_sheetmetal(script)
+    elif _is_sheetmetal_script(script):
+        raw = _validate_sheetmetal(script)
     else:
         raw = _validate_catscript(script)
 
