@@ -172,6 +172,28 @@ indiqués ainsi que les paramètres que l'on peut préciser.
 
 ## EHI — Harnais et câblage
 
+### DMU (Digital Mock-Up)
+**Définition :** maquette numérique 3D d'un environnement d'intégration — assemblage de composants (structure avion, boîtiers équipements, supports) utilisé comme contexte spatial pour le routage de harnais.  
+**Usage dans FastCAD :** un fichier DMU (STEP, STP ou CATProduct) peut être déposé dans la section `04 _ Environnement DMU` lorsque le type de script est `EHI/EHA`. FastCAD extrait la boîte englobante et les composants, puis génère un script de routage qui évite les volumes d'encombrement.  
+**Formats acceptés :** `.step`, `.stp`, `.catproduct`
+
+---
+
+### CATProduct d'environnement
+**Définition :** fichier `.catproduct` CATIA V5 décrivant un assemblage multi-pièces utilisé comme référence spatiale pour le routage de harnais. Contrairement à un CATProduct de conception, il est utilisé ici en lecture seule pour en extraire les composants (`Component`, `Instance`) et les contraintes de positionnement.  
+**Données extraites :** liste des composants nommés, contraintes d'assemblage (Contact, Coincidence, Offset, Angle)  
+**Rôle :** fournit au LLM la topologie de l'environnement pour calculer des points de passage réalistes.
+
+---
+
+### Point de passage 3D
+**Termes reconnus :** point de routage, waypoint, routing point, point 3D, point de guidage  
+**Ce que ça fait :** point géométrique dans l'espace 3D utilisé comme nœud de passage obligatoire pour le tracé d'un segment de harnais. Défini via `HybridShapeFactory` dans les scripts EHI/EHA.  
+**Paramètres utiles :** coordonnées X, Y, Z (mm) — typiquement dérivées des dimensions de la boîte englobante du DMU avec un offset de sécurité minimum de 20 mm par rapport aux volumes d'encombrement.  
+**Exemple :** *"un point de passage à X=150, Y=50, Z=80 au-dessus du boîtier équipement"*
+
+---
+
 ### Faisceau / Tronçon de câblage
 **Termes reconnus :** faisceau, tronçon, faisceau électrique, câble, loom, bundle, harnais principal, segment de harnais  
 **Ce que ça fait :** crée un tronçon de câblage entre deux points, avec ses propriétés (diamètre, longueur, courbure)  
@@ -238,3 +260,91 @@ Toutes les dimensions doivent être précisées en **millimètres (mm)** et les 
 
 **Niveau de détail conseillé**  
 Plus la description mentionne de dimensions précises (Ø, longueur, épaisseur, nombre d'occurrences), plus le script généré sera fidèle. Une description vague produira un script avec des valeurs par défaut à ajuster.
+
+---
+
+## Formats d'entrée — rétro-ingénierie
+
+La fonctionnalité de rétro-ingénierie accepte les formats CAD suivants en entrée pour générer automatiquement un script CATScript reproductible.
+
+### STEP / STP
+
+**Extension :** `.step`, `.stp`  
+**Standard :** ISO 10303 (STEP — Standard for the Exchange of Product model data)  
+**Structure :** fichier texte ASCII structuré en entités numérotées (`#ID = ENTITE(...)`)  
+**Données extraites :** produits (`PRODUCT`), points cartésiens (`CARTESIAN_POINT`), cotes (`LENGTH_MEASURE`), coques fermées (`CLOSED_SHELL`), faces avancées (`ADVANCED_FACE`)  
+**Usage :** format d'échange universel — exportable depuis CATIA, SolidWorks, STEP AP214/242
+
+---
+
+### CATPart
+
+**Extension :** `.catpart`  
+**Origine :** CATIA V5 / V6 — pièce mécanique individuelle  
+**Structure interne :** archive ZIP contenant des fichiers XML décrivant l'arbre de construction  
+**Données extraites :** features de conception (Pad, Pocket, Shaft, Groove, Hole, Fillet, Chamfer, CircPattern, RectPattern, Mirror, Shell, Sweep, Loft), paramètres nommés avec leurs valeurs  
+**Usage :** pièces solides CATIA V5 — constituant de base des assemblages CATProduct
+
+---
+
+### CATProduct
+
+**Extension :** `.catproduct`  
+**Origine :** CATIA V5 / V6 — assemblage de pièces  
+**Structure interne :** archive ZIP contenant des fichiers XML décrivant l'arbre d'assemblage  
+**Données extraites :** composants (`Component`, `Instance`, `Reference`), contraintes d'assemblage (Contact, Coincidence, Offset, Angle)  
+**Usage :** assemblages multi-pièces CATIA V5 — référence des CATPart qui le composent
+
+---
+
+### IGES
+
+**Extension :** `.igs`, `.iges`  
+**Standard :** IGES — Initial Graphics Exchange Specification  
+**Note :** format non supporté en rétro-ingénierie directe dans FastCAD (pas d'extraction structurée disponible sans dépendance lourde). Convertir en STEP avant import.
+
+---
+
+## Mise en plan — CATDrawing
+
+### CATDrawing
+
+**Définition :** document CATIA V5 de type dessin technique (`.CATDrawing`) contenant une ou plusieurs feuilles de mise en plan. Créé en CATScript via `CATIA.Documents.Add("Drawing")` et représenté par l'objet `DrawingDocument`.  
+**Usage dans FastCAD :** la section `05 _ Mise en plan` génère automatiquement un script CATScript qui crée un `CATDrawing` à partir d'un modèle existant (CATPart, CATProduct ou STEP).  
+**Norme appliquée :** ISO (`catISO`) par défaut — peut être ajustée dans le script généré.
+
+---
+
+### DrawingSheet
+
+**Définition :** feuille de dessin au sein d'un `CATDrawing`. Accessible via `oDrawing.Sheets.Item(1)`. Contient les vues projetées, le cartouche et les annotations.  
+**Paramètres utiles :** format (A0 à A4), orientation (paysage/portrait), échelle générale.  
+**Exemple CATScript :** `Dim oSheet As DrawingSheet / Set oSheet = oDrawing.Sheets.Item(1)`
+
+---
+
+### Vues projetées (face / dessus / profil)
+
+**Termes reconnus :** vue de face, vue de dessus, vue de profil, vue de droite, vue isométrique, projection orthogonale, vue principale  
+**Ce que ça fait :** projections 2D orthogonales du modèle 3D selon les directions standard (ISO E ou ISO A) placées sur la feuille de dessin.  
+**Vues générées automatiquement :**  
+- **Vue de face** — projection sur le plan frontal (YZ)  
+- **Vue de dessus** — projection sur le plan horizontal (XY)  
+- **Vue de profil** — projection sur le plan de profil (ZX)  
+**API CATIA V5 :** `oSheet.Views.AddDetail` ou vues génératives depuis le document 3D actif.
+
+---
+
+### Cartouche
+
+**Termes reconnus :** cartouche, titre, bloc de titre, title block, nomenclature, cadre de dessin  
+**Ce que ça fait :** zone normalisée en bas à droite de la feuille contenant les informations administratives du dessin : nom de la pièce, date, indice de révision, auteur, société.  
+**Accès CATScript :** `oSheet.DrawingComponents` — permet de renseigner le nom de la pièce et la date si accessible depuis le modèle source.
+
+---
+
+### Norme ISO
+
+**Contexte :** norme de dessin technique internationale appliquée aux CATDrawing générés par FastCAD.  
+**Constante CATScript :** `catISO` — appliquée via `oDrawing.Standard = catISO`.  
+**Effets :** projections en convention européenne (premier dièdre), symbolisation des tolérances géométriques, format des flèches de cotation et des lignes de rappel conformes à ISO 128 et ISO 129.

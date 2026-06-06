@@ -130,3 +130,91 @@ def build_geometry_prompt(user_query: str, script_type: str = "") -> str:
     if "ehi" in st or "eha" in st:
         return _GEOMETRY_PROMPT_HARNESS.format(user_query=user_query)
     return _GEOMETRY_PROMPT_PART.format(user_query=user_query)
+
+
+# ---------------------------------------------------------------------------
+# Reverse-engineering prompt
+# ---------------------------------------------------------------------------
+
+# ---------------------------------------------------------------------------
+# Harness routing prompt (T-603)
+# ---------------------------------------------------------------------------
+
+def build_routing_prompt(env_info: dict, user_query: str = "") -> str:
+    import json as _json
+    info_str = _json.dumps(env_info, ensure_ascii=False, indent=2)
+    extra = f"\nAdditional routing constraints from user: {user_query}" if user_query.strip() else ""
+    return f"""\
+You are an expert CATIA V5 R27 electrical harness engineer. An environment DMU (Digital Mock-Up) has been analysed below.
+
+DMU ENVIRONMENT ANALYSIS:
+{info_str}
+{extra}
+
+Your task: write a complete, syntactically correct EHI/EHA CATScript that routes a harness through this environment.
+
+RULES:
+- Use ElecHarnessInstallation factory to create the harness.
+- Use HybridShapeFactory to define 3D routing points derived from the bounding_box_mm dimensions.
+- Create ElecBundleSegment instances with SetDiameter and AddRoutingPoint.
+- Place routing points that avoid component volumes (offset by at least 20mm from bounding boxes).
+- End with oProduct.Update.
+- Add inline comments on every non-trivial line.
+- Output ONLY the EHI/EHA CATScript, no explanations.
+
+Generate the complete harness routing script now:"""
+
+
+# ---------------------------------------------------------------------------
+# Drawing prompt (T-604)
+# ---------------------------------------------------------------------------
+
+def build_drawing_prompt(file_info: dict) -> str:
+    import json as _json
+    info_str = _json.dumps(file_info, ensure_ascii=False, indent=2)
+    return f"""\
+You are an expert CATIA V5 R27 automation engineer. A CAD file has been analysed below.
+
+CAD FILE ANALYSIS:
+{info_str}
+
+Your task: write a complete, syntactically correct CATScript that creates a CATDrawing (technical drawing) from the existing part/product.
+
+RULES:
+- Retrieve the active document with CATIA.ActiveDocument.
+- Create a new Drawing document: Dim oDrawing As DrawingDocument / Set oDrawing = CATIA.Documents.Add("Drawing").
+- Set standard to ISO: oDrawing.Standard = catISO.
+- Get the first sheet: Dim oSheet As DrawingSheet / Set oSheet = oDrawing.Sheets.Item(1).
+- Add a front view, a top view, and a right view using oSheet.Views.AddDetail or GenerativeViews from the 3D document.
+- For each view, set scale to 1:1 (or appropriate from bounding_box_mm).
+- Add automatic dimensions using oView.GenerateDimensions if available.
+- Fill the title block (oSheet.DrawingComponents) with part name and date if accessible.
+- End with oDrawing.Update.
+- Add inline comments on every non-trivial line.
+- Output ONLY the CATScript code, no explanations.
+
+Generate the complete CATDrawing script now:"""
+
+
+def build_reverse_prompt(file_info: dict, user_query: str = "") -> str:
+    import json as _json
+    info_str = _json.dumps(file_info, ensure_ascii=False, indent=2)
+    extra = f"\nAdditional user instruction: {user_query}" if user_query.strip() else ""
+    return f"""\
+You are an expert CATIA V5 R27 automation engineer. A CAD file has been analysed and its structure extracted below.
+
+CAD FILE ANALYSIS:
+{info_str}
+{extra}
+
+Your task: write a complete, syntactically correct CATScript (VBA) that reproduces this part/assembly from scratch using the CATIA V5 API.
+
+RULES:
+- Use Option Explicit. Declare all variables with Dim/As.
+- Reproduce all features in order (Pad, Pocket, Hole, Fillet, Pattern, etc.) as found in the analysis.
+- Use bounding_box_mm and key_dimensions_mm for realistic dimensions if exact values are unavailable.
+- End with oPart.Update.
+- Add inline comments on every non-trivial line.
+- Output ONLY the CATScript code, no explanations.
+
+Generate the complete CATScript now:"""

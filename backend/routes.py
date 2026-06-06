@@ -15,10 +15,11 @@ from pydantic import BaseModel, Field
 
 load_dotenv()
 
+from backend.file_parser import parse_cad_file
 from backend.ingest import chunk_pages, embed_and_store, load_pdf
 from backend.llm_router import call_llm
-from backend.prompt_builder import build_geometry_prompt, build_prompt
-from backend.rag_retriever import retrieve
+from backend.prompt_builder import build_drawing_prompt, build_geometry_prompt, build_prompt, build_reverse_prompt, build_routing_prompt
+from backend.rag_retriever import retrieve, get_all_chunks
 
 router = APIRouter()
 
@@ -98,6 +99,26 @@ class GeometryRequest(BaseModel):
 
 class GeometryResponse(BaseModel):
     geometry: dict | None = None
+
+
+class GraphResponse(BaseModel):
+    nodes: list[dict]
+    edges: list[dict]
+
+
+class ReverseEngineerResponse(BaseModel):
+    script: str
+    file_info: dict
+
+
+class HarnessRoutingResponse(BaseModel):
+    script: str
+    env_info: dict
+
+
+class DrawingResponse(BaseModel):
+    script: str
+    file_info: dict
 
 
 # ---------------------------------------------------------------------------
@@ -183,6 +204,45 @@ def generate(req: GenerationRequest) -> GenerationResponse:
     return GenerationResponse(script=script, sources=sources, confidence=confidence)
 
 
+@router.get("/graph", response_model=GraphResponse)
+def knowledge_graph() -> GraphResponse:
+    import numpy as np
+    chunks = get_all_chunks(_CHROMA_PATH)
+    if not chunks:
+        return GraphResponse(nodes=[], edges=[])
+
+    ids = [c["id"] for c in chunks]
+    embeddings = np.array([c["embedding"] for c in chunks], dtype=np.float32)
+    # Normalize for cosine similarity via dot product
+    norms = np.linalg.norm(embeddings, axis=1, keepdims=True)
+    norms[norms == 0] = 1
+    embeddings /= norms
+    sim = embeddings @ embeddings.T
+
+    nodes = [
+        {
+            "id": c["id"],
+            "label": (c["content"][:70] + "…") if len(c["content"]) > 70 else c["content"],
+            "source": c["source_file"],
+            "page": c["page_number"],
+        }
+        for c in chunks
+    ]
+
+    THRESHOLD = 0.65
+    TOP_K = 5
+    edges = []
+    for i in range(len(ids)):
+        row = sim[i].copy()
+        row[i] = -1
+        top = sorted(range(len(row)), key=lambda j: row[j], reverse=True)[:TOP_K]
+        for j in top:
+            if row[j] >= THRESHOLD and i < j:
+                edges.append({"source": ids[i], "target": ids[j], "weight": round(float(row[j]), 3)})
+
+    return GraphResponse(nodes=nodes, edges=edges)
+
+
 @router.post("/geometry", response_model=GeometryResponse)
 def geometry_preview(req: GeometryRequest) -> GeometryResponse:
     api_key = req.api_key.strip() or os.getenv(_ENV_KEYS.get(req.provider.value, ""), "")
@@ -199,3 +259,110 @@ def geometry_preview(req: GeometryRequest) -> GeometryResponse:
                 detail="Limite de requêtes atteinte. Changez de modèle dans les paramètres.",
             )
         return GeometryResponse(geometry=None)
+
+
+_REVERSE_EXTENSIONS = {".step", ".stp", ".catpart", ".catproduct"}
+_DMU_EXTENSIONS = {".step", ".stp", ".catproduct"}
+
+
+@router.post("/reverse-engineer", response_model=ReverseEngineerResponse)
+async def reverse_engineer(
+    file: UploadFile = File(...),
+    provider: str = "ollama",
+    model: str = "qwen2.5-coder:14b",
+    api_key: str = "",
+) -> ReverseEngineerResponse:
+    if not file.filename:
+        raise HTTPException(status_code=400, detail="Fichier requis.")
+    ext = Path(file.filename).suffix.lower()
+    if ext not in _REVERSE_EXTENSIONS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Format non supporté : {ext}. Acceptés : STEP, STP, CATPart, CATProduct.",
+        )
+
+    with tempfile.NamedTemporaryFile(suffix=ext, delete=False) as tmp:
+        shutil.copyfileobj(file.file, tmp)
+        tmp_path = Path(tmp.name)
+
+    try:
+        file_info = parse_cad_file(tmp_path)
+        resolved_key = api_key.strip() or os.getenv(_ENV_KEYS.get(provider, ""), "")
+        prompt = build_reverse_prompt(file_info)
+        try:
+            script = call_llm(provider, model, resolved_key, prompt)
+        except Exception as exc:
+            raise HTTPException(status_code=502, detail=f"Erreur LLM : {str(exc)[:200]}")
+        script = _strip_markdown_fences(script)
+    finally:
+        tmp_path.unlink(missing_ok=True)
+
+    return ReverseEngineerResponse(script=script, file_info=file_info)
+
+
+@router.post("/harness-routing", response_model=HarnessRoutingResponse)
+async def harness_routing(
+    file: UploadFile = File(...),
+    user_query: str = "",
+    provider: str = "ollama",
+    model: str = "qwen2.5-coder:14b",
+    api_key: str = "",
+) -> HarnessRoutingResponse:
+    if not file.filename:
+        raise HTTPException(status_code=400, detail="Fichier requis.")
+    ext = Path(file.filename).suffix.lower()
+    if ext not in _DMU_EXTENSIONS:
+        raise HTTPException(status_code=400, detail=f"Format non supporté : {ext}. Acceptés : STEP, STP, CATProduct.")
+
+    with tempfile.NamedTemporaryFile(suffix=ext, delete=False) as tmp:
+        shutil.copyfileobj(file.file, tmp)
+        tmp_path = Path(tmp.name)
+
+    try:
+        env_info = parse_cad_file(tmp_path)
+        resolved_key = api_key.strip() or os.getenv(_ENV_KEYS.get(provider, ""), "")
+        prompt = build_routing_prompt(env_info, user_query)
+        try:
+            script = call_llm(provider, model, resolved_key, prompt)
+        except Exception as exc:
+            raise HTTPException(status_code=502, detail=f"Erreur LLM : {str(exc)[:200]}")
+        script = _strip_markdown_fences(script)
+    finally:
+        tmp_path.unlink(missing_ok=True)
+
+    return HarnessRoutingResponse(script=script, env_info=env_info)
+
+
+_DRAWING_EXTENSIONS = {".step", ".stp", ".catpart", ".catproduct"}
+
+
+@router.post("/drawing", response_model=DrawingResponse)
+async def auto_drawing(
+    file: UploadFile = File(...),
+    provider: str = "ollama",
+    model: str = "qwen2.5-coder:14b",
+    api_key: str = "",
+) -> DrawingResponse:
+    if not file.filename:
+        raise HTTPException(status_code=400, detail="Fichier requis.")
+    ext = Path(file.filename).suffix.lower()
+    if ext not in _DRAWING_EXTENSIONS:
+        raise HTTPException(status_code=400, detail=f"Format non supporté : {ext}. Acceptés : STEP, STP, CATPart, CATProduct.")
+
+    with tempfile.NamedTemporaryFile(suffix=ext, delete=False) as tmp:
+        shutil.copyfileobj(file.file, tmp)
+        tmp_path = Path(tmp.name)
+
+    try:
+        file_info = parse_cad_file(tmp_path)
+        resolved_key = api_key.strip() or os.getenv(_ENV_KEYS.get(provider, ""), "")
+        prompt = build_drawing_prompt(file_info)
+        try:
+            script = call_llm(provider, model, resolved_key, prompt)
+        except Exception as exc:
+            raise HTTPException(status_code=502, detail=f"Erreur LLM : {str(exc)[:200]}")
+        script = _strip_markdown_fences(script)
+    finally:
+        tmp_path.unlink(missing_ok=True)
+
+    return DrawingResponse(script=script, file_info=file_info)

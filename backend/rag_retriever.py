@@ -62,3 +62,24 @@ def retrieve(
         )
 
     return chunks
+
+
+def get_all_chunks(chroma_path: Path) -> list[dict]:
+    """Return all stored chunks with their embeddings."""
+    client = chromadb.PersistentClient(path=str(chroma_path))
+    collection = client.get_or_create_collection(name=_COLLECTION_NAME)
+    if collection.count() == 0:
+        return []
+    result = collection.get(include=["documents", "metadatas", "embeddings"])
+    chunks = []
+    for id_, doc, meta, emb in zip(
+        result["ids"], result["documents"], result["metadatas"], result["embeddings"]
+    ):
+        chunks.append({
+            "id": id_,
+            "content": doc,
+            "source_file": meta.get("source_file", ""),
+            "page_number": meta.get("page_number", 0),
+            "embedding": emb,
+        })
+    return chunks

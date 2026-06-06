@@ -239,6 +239,124 @@ de signal documentés.
 
 ---
 
+## Rétro-ingénierie — Import de fichiers CAD existants
+
+### UC-21 — Rétro-ingénierie CATPart simple
+
+**Type :** Rétro-ingénierie → CATScript  
+**Format d'entrée :** CATPart  
+**Démarche :**
+1. Ouvrir l'outil à `http://localhost:8000`
+2. Dans la section `03 _ Rétro-ingénierie`, déposer un fichier `.catpart`
+3. Cliquer sur **Rétro-ingénierer**
+4. FastCAD extrait l'arbre de features (Pad, Pocket, Hole, Fillet, etc.) et les paramètres nommés
+5. Le LLM génère un CATScript complet reproduisant la pièce depuis zéro
+
+**Ce que le script généré contient :**
+- Création du document Part et du PartBody
+- Reproduction de chaque feature dans l'ordre de l'arbre de construction
+- Application des paramètres dimensionnels extraits
+- `oPart.Update` en fin de script
+
+**Exemple de résultat attendu :** pièce avec Pad de base, 2 Pockets, 1 Hole, congés Fillet — entièrement reproductible via macro CATIA V5.
+
+---
+
+### UC-22 — Rétro-ingénierie CATProduct assemblage
+
+**Type :** Rétro-ingénierie → CATScript  
+**Format d'entrée :** CATProduct  
+**Démarche :**
+1. Ouvrir l'outil à `http://localhost:8000`
+2. Dans la section `03 _ Rétro-ingénierie`, déposer un fichier `.catproduct`
+3. Cliquer sur **Rétro-ingénierer**
+4. FastCAD extrait les composants et les contraintes d'assemblage
+5. Le LLM génère un CATScript créant le produit et instanciant chaque composant avec ses contraintes
+
+**Ce que le script généré contient :**
+- Création du document Product
+- Instanciation de chaque composant référencé
+- Application des contraintes d'assemblage (Contact, Coincidence, Offset, Angle)
+- `oProduct.Update` en fin de script
+
+**Exemple de résultat attendu :** assemblage de 3 pièces avec contraintes de coïncidence et d'offset — structure d'assemblage reproductible.
+
+---
+
+## Routage de harnais sur environnement DMU
+
+### UC-23 — Routage harnais sur DMU d'environnement
+
+**Type :** EHI/EHA — Routage DMU  
+**Format d'entrée :** STEP / STP / CATProduct  
+**Démarche :**
+1. Ouvrir l'outil à `http://localhost:8000`
+2. Sélectionner le type de script `EHI/EHA` (les pills de sélection)
+3. La section `04 _ Environnement DMU` apparaît dans le panneau gauche
+4. Déposer le fichier DMU de l'environnement d'intégration (`.step`, `.stp` ou `.catproduct`)
+5. Saisir optionnellement des contraintes de routage dans le champ `O1 — Opération CATIA`
+6. Cliquer sur **Router le harnais**
+7. FastCAD extrait la boîte englobante et les composants du DMU, puis appelle le LLM
+
+**Ce que le script généré contient :**
+- Création du document Product via `ElecHarnessInstallation` factory
+- Définition de points de passage 3D via `HybridShapeFactory`, dérivés des dimensions `bounding_box_mm`
+- Création de segments `ElecBundleSegment` avec `SetDiameter` et `AddRoutingPoint`
+- Points de passage offsettés d'au moins 20 mm par rapport aux volumes d'encombrement
+- `oProduct.Update` en fin de script
+
+**Exemple de résultat attendu :** harnais routé à travers un environnement STEP avec 3 points de passage évitant les boîtiers équipements — script EHI/EHA complet exécutable sous CATIA V5 R27.
+
+---
+
+## Mise en plan automatique
+
+### UC-24 — Mise en plan CATPart simple
+
+**Type :** Mise en plan → CATScript / CATDrawing  
+**Format d'entrée :** CATPart  
+**Démarche :**
+1. Ouvrir l'outil à `http://localhost:8000`
+2. Dans la section `05 _ Mise en plan`, déposer un fichier `.catpart`
+3. Cliquer sur **Générer la mise en plan**
+4. FastCAD extrait les features et paramètres du CATPart, puis appelle le LLM
+5. Le script CATScript généré crée un `CATDrawing` avec trois vues projetées et la cotation automatique
+
+**Ce que le script généré contient :**
+- Récupération du document actif via `CATIA.ActiveDocument`
+- Création d'un `DrawingDocument` avec norme ISO (`catISO`)
+- Vue de face, vue de dessus, vue de profil à l'échelle 1:1
+- Cotation automatique via `oView.GenerateDimensions` si disponible
+- Renseignement du cartouche (nom de pièce, date)
+- `oDrawing.Update` en fin de script
+
+**Exemple de résultat attendu :** mise en plan ISO complète d'une pièce mécanique simple (platine, boîtier) avec trois vues et cotation — script CATDrawing exécutable sous CATIA V5 R27.
+
+---
+
+### UC-25 — Mise en plan CATProduct assemblage
+
+**Type :** Mise en plan → CATScript / CATDrawing  
+**Format d'entrée :** CATProduct  
+**Démarche :**
+1. Ouvrir l'outil à `http://localhost:8000`
+2. Dans la section `05 _ Mise en plan`, déposer un fichier `.catproduct`
+3. Cliquer sur **Générer la mise en plan**
+4. FastCAD extrait les composants et contraintes de l'assemblage, puis appelle le LLM
+5. Le script CATScript généré crée un `CATDrawing` adapté à la complexité de l'assemblage
+
+**Ce que le script généré contient :**
+- Récupération du document assemblage actif
+- Création d'un `DrawingDocument` avec norme ISO
+- Vues projetées dimensionnées d'après la boîte englobante de l'assemblage
+- Échelle adaptée automatiquement si l'assemblage est volumineux
+- Cartouche renseigné avec le nom du produit
+- `oDrawing.Update` en fin de script
+
+**Exemple de résultat attendu :** mise en plan ISO d'un assemblage multi-pièces avec vues d'ensemble et échelle adaptée — script CATDrawing complet exécutable sous CATIA V5 R27.
+
+---
+
 ## Synthèse
 
 | UC | Type | Domaine |
@@ -263,6 +381,11 @@ de signal documentés.
 | 18 | EHI | Harnais avec connecteurs |
 | 19 | EHI | Câblage en étoile |
 | 20 | EHI | Fils référencés et signaux |
+| 21 | Rétro-ingénierie | CATPart simple → CATScript |
+| 22 | Rétro-ingénierie | CATProduct assemblage → CATScript |
+| 23 | EHI/EHA — Routage DMU | Routage harnais sur environnement STEP/CATProduct |
+| 24 | Mise en plan | CATPart simple → CATDrawing |
+| 25 | Mise en plan | CATProduct assemblage → CATDrawing |
 
 ---
 

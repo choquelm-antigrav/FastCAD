@@ -176,7 +176,7 @@
   - **Agent :** UI/UX + Auditeur
   - **Réf :** `backend/prompt_builder.py::build_geometry_prompt`, `frontend/index.html` section Three.js
 
-- [ ] **T-602** — Rétro-ingénierie de modèle CAD → script reproductible
+- [x] **T-602** — Rétro-ingénierie de modèle CAD → script reproductible
   - Nouveau endpoint `POST /reverse-engineer` — accept `UploadFile` (`.CATPart`, `.CATProduct`, `.step`, `.stp`)
   - Parser les features géométriques du fichier : `pythonocc-core` (STEP/IGES) ou extraction XML CATPart
   - Construire un prompt de rétro-ingénierie dans `prompt_builder.py` : décrire les solides détectés → demander au LLM de générer le CATScript reproductible
@@ -186,7 +186,7 @@
   - **Agent :** Architecte (nouveau endpoint + parseur) + UI/UX (bouton import)
   - **Réf :** Specification.md — capacités d'analyse de l'existant
 
-- [ ] **T-603** — Passage de harnais depuis un fichier DMU d'environnement
+- [x] **T-603** — Passage de harnais depuis un fichier DMU d'environnement
   - Nouveau endpoint `POST /harness-routing` — accept un fichier `.CATProduct` ou `.step` représentant l'environnement 3D
   - Extraire les surfaces, volumes et contraintes de passage (zones interdites, zones de passage) via `pythonocc-core`
   - Générer un prompt EHI/EHA qui décrit l'environnement et demande le script de routage avec points de passage 3D réels
@@ -196,7 +196,15 @@
   - **Agent :** Architecte + UI/UX
   - **Réf :** F-04 (ingestion), §7.3 — à étendre pour formats CAD natifs
 
-- [ ] **T-604** — Mise en plan automatique d'un modèle chargé
+- [x] **T-605** — Visualisation du graphe de connaissances (chunks ChromaDB)
+  - Nouveau endpoint `GET /graph` : extraire tous les chunks ChromaDB, calculer les top-K similarités cosine par nœud (seuil 0.65), retourner `{nodes, edges}` JSON
+  - Ajouter `get_all_chunks(chroma_path)` dans `backend/rag_retriever.py`
+  - Frontend : import D3.js (CDN), nouveau panneau modal "Graphe de connaissances" — force-directed graph, nœuds colorés par fichier source, tooltip = extrait du chunk
+  - Bouton "GRAPH" dans la topbar, accessible sans avoir généré de script
+  - Performances : limiter à top-5 voisins par nœud au-delà de 500 chunks
+  - **Agent :** Architecte + UI/UX
+
+- [x] **T-604** — Mise en plan automatique d'un modèle chargé
   - Nouveau endpoint `POST /drawing` — accept un fichier `.CATPart` ou `.CATProduct`
   - Analyser les faces et volumes principaux (via STEP ou pythonocc) pour déterminer les vues pertinentes (dessus, face, profil, isométrique)
   - Générer un script CATScript `CATDrawing` : création du dessin, placement des vues projetées, cotation automatique des dimensions principales
@@ -216,5 +224,5 @@ T-001 → T-002 → T-501 → T-502
 → T-201 → T-202 → T-203 → T-204 → T-205 → T-206
 → T-301 → T-302 → T-303 → T-304 → T-305 → T-306
 → T-401 → T-402 → T-403 → T-404
-→ T-601 → T-602 → T-603 → T-604
+→ T-601 → T-605 → T-602 → T-603 → T-604
 ```

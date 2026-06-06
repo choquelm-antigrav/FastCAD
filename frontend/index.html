@@ -10,6 +10,8 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/vbscript.min.js"></script>
 
+  <script src="https://cdn.jsdelivr.net/npm/d3@7/dist/d3.min.js"></script>
+
   <!-- Three.js ESM -->
   <script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.min.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}</script>
   <script type="module">
@@ -908,6 +910,35 @@
       transition: var(--trans-fast);
     }
     #btn-library:hover { border-color: var(--color-electric-blue); color: var(--color-electric-blue); }
+    #btn-graph {
+      font-family: var(--font-display); font-size: 0.7rem; letter-spacing: 3px;
+      text-transform: uppercase; cursor: pointer; border-radius: var(--radius-btn);
+      padding: 0.3rem 0.85rem; background: none;
+      border: 1px solid var(--color-glass-border); color: var(--color-text-muted);
+      transition: var(--trans-fast);
+    }
+    #btn-graph:hover { border-color: var(--color-electric-blue); color: var(--color-electric-blue); }
+    #modal-graph .modal {
+      width: 860px; max-height: 90vh; display: flex; flex-direction: column; padding: 0;
+    }
+    .graph-modal-header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 1rem 1.5rem; border-bottom: 1px solid var(--color-glass-border); flex-shrink: 0;
+    }
+    #graph-svg-container {
+      flex: 1; overflow: hidden; position: relative; min-height: 500px;
+    }
+    #graph-svg { width: 100%; height: 100%; display: block; }
+    #graph-empty {
+      position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%);
+      font-size: 0.7rem; letter-spacing: 3px; text-transform: uppercase;
+      color: rgba(255,255,255,0.25); text-align: center;
+    }
+    .graph-tooltip {
+      position: fixed; background: rgba(1,2,4,0.95); border: 1px solid var(--color-glass-border);
+      padding: 0.5rem 0.75rem; font-size: 0.65rem; line-height: 1.6; max-width: 280px;
+      pointer-events: none; z-index: 9999; display: none; border-radius: 2px;
+    }
     #btn-save {
       background: transparent; color: var(--color-text-muted);
       border: 1px solid var(--color-glass-border); padding: 0.7rem 1.4rem;
@@ -1004,6 +1035,72 @@
       padding-left: 1rem;
     }
     #modal-notice strong { color: var(--color-white); }
+
+    /* ── REVERSE ENGINEERING ───────────────────────────────────────────── */
+    #reverse-section {
+      border-top: 1px solid var(--color-glass-border);
+      padding-top: 1.25rem; margin-top: 0.5rem;
+    }
+    #reverse-drop {
+      border: 1px dashed var(--color-glass-border); border-radius: var(--radius-btn);
+      padding: 1.2rem; text-align: center; cursor: pointer; transition: var(--trans-fast);
+      color: var(--color-text-muted); font-size: 0.7rem; letter-spacing: 2px; text-transform: uppercase;
+    }
+    #reverse-drop:hover, #reverse-drop.drag-over { border-color: var(--color-magma); color: var(--color-magma); }
+    #reverse-filename { font-size: 0.65rem; color: var(--color-magma); letter-spacing: 1px; margin-top: 0.4rem; min-height: 1rem; }
+    #btn-reverse {
+      width: 100%; padding: 0.7rem; font-family: var(--font-display); font-size: 0.75rem;
+      text-transform: uppercase; letter-spacing: 3px; cursor: pointer; border-radius: var(--radius-btn);
+      background: rgba(255,95,0,0.1); border: 1px solid rgba(255,95,0,0.4); color: var(--color-magma);
+      transition: var(--trans-fast); margin-top: 0.75rem;
+    }
+    #btn-reverse:hover:not(:disabled) { background: rgba(255,95,0,0.2); }
+    #btn-reverse:disabled { opacity: 0.3; cursor: not-allowed; }
+    #reverse-file-input { display: none; }
+
+    /* ── DMU HARNESS ROUTING ───────────────────────────────────────────── */
+    #dmu-section {
+      border-top: 1px solid var(--color-glass-border);
+      padding-top: 1.25rem; margin-top: 0.5rem; display: none;
+    }
+    #dmu-drop {
+      border: 1px dashed var(--color-glass-border); border-radius: var(--radius-btn);
+      padding: 1.2rem; text-align: center; cursor: pointer; transition: var(--trans-fast);
+      color: var(--color-text-muted); font-size: 0.7rem; letter-spacing: 2px; text-transform: uppercase;
+    }
+    #dmu-drop:hover, #dmu-drop.drag-over { border-color: var(--color-electric-blue); color: var(--color-electric-blue); }
+    #dmu-filename { font-size: 0.65rem; color: var(--color-electric-blue); letter-spacing: 1px; margin-top: 0.4rem; min-height: 1rem; }
+    #btn-dmu-route {
+      width: 100%; padding: 0.7rem; font-family: var(--font-display); font-size: 0.75rem;
+      text-transform: uppercase; letter-spacing: 3px; cursor: pointer; border-radius: var(--radius-btn);
+      background: rgba(0,163,255,0.1); border: 1px solid rgba(0,163,255,0.4); color: var(--color-electric-blue);
+      transition: var(--trans-fast); margin-top: 0.75rem;
+    }
+    #btn-dmu-route:hover:not(:disabled) { background: rgba(0,163,255,0.2); }
+    #btn-dmu-route:disabled { opacity: 0.3; cursor: not-allowed; }
+    #dmu-file-input { display: none; }
+
+    /* ── MISE EN PLAN ──────────────────────────────────────────────────── */
+    #drawing-section {
+      border-top: 1px solid var(--color-glass-border);
+      padding-top: 1.25rem; margin-top: 0.5rem;
+    }
+    #drawing-drop {
+      border: 1px dashed var(--color-glass-border); border-radius: var(--radius-btn);
+      padding: 1.2rem; text-align: center; cursor: pointer; transition: var(--trans-fast);
+      color: var(--color-text-muted); font-size: 0.7rem; letter-spacing: 2px; text-transform: uppercase;
+    }
+    #drawing-drop:hover, #drawing-drop.drag-over { border-color: rgba(124,252,0,0.6); color: rgba(124,252,0,0.8); }
+    #drawing-filename { font-size: 0.65rem; color: rgba(124,252,0,0.8); letter-spacing: 1px; margin-top: 0.4rem; min-height: 1rem; }
+    #btn-drawing {
+      width: 100%; padding: 0.7rem; font-family: var(--font-display); font-size: 0.75rem;
+      text-transform: uppercase; letter-spacing: 3px; cursor: pointer; border-radius: var(--radius-btn);
+      background: rgba(124,252,0,0.07); border: 1px solid rgba(124,252,0,0.35); color: rgba(124,252,0,0.85);
+      transition: var(--trans-fast); margin-top: 0.75rem;
+    }
+    #btn-drawing:hover:not(:disabled) { background: rgba(124,252,0,0.14); }
+    #btn-drawing:disabled { opacity: 0.3; cursor: not-allowed; }
+    #drawing-file-input { display: none; }
   </style>
 </head>
 <body>
@@ -1020,6 +1117,7 @@
     <div id="titlebar-right">
       <div id="provider-badge">NO PROVIDER</div>
       <button id="btn-library" aria-label="Bibliothèque de scripts">LIBRARY</button>
+      <button id="btn-graph" aria-label="Graphe de connaissances">GRAPH</button>
       <button id="btn-settings" title="Paramètres" aria-label="Ouvrir les paramètres">⚙</button>
     </div>
   </header>
@@ -1064,6 +1162,39 @@
       <button id="btn-generate" class="btn btn-solid" disabled aria-disabled="true">
         Générer le script
       </button>
+
+      <!-- RÉTRO-INGÉNIERIE -->
+      <div id="reverse-section">
+        <span class="field-label">03 _ Rétro-ingénierie</span>
+        <div id="reverse-drop" role="button" tabindex="0" aria-label="Déposer un fichier CAD">
+          Déposer un fichier<br><span style="opacity:0.5;font-size:0.6rem">STEP · STP · CATPart · CATProduct</span>
+        </div>
+        <div id="reverse-filename"></div>
+        <input type="file" id="reverse-file-input" accept=".step,.stp,.catpart,.catproduct">
+        <button id="btn-reverse" disabled>Rétro-ingénierer</button>
+      </div>
+
+      <!-- DMU ROUTING — visible uniquement en mode EHI/EHA -->
+      <div id="dmu-section">
+        <span class="field-label">04 _ Environnement DMU</span>
+        <div id="dmu-drop" role="button" tabindex="0" aria-label="Déposer un fichier DMU">
+          Déposer l'environnement<br><span style="opacity:0.5;font-size:0.6rem">STEP · STP · CATProduct</span>
+        </div>
+        <div id="dmu-filename"></div>
+        <input type="file" id="dmu-file-input" accept=".step,.stp,.catproduct">
+        <button id="btn-dmu-route" disabled>Router le harnais</button>
+      </div>
+
+      <!-- MISE EN PLAN -->
+      <div id="drawing-section">
+        <span class="field-label">05 _ Mise en plan</span>
+        <div id="drawing-drop" role="button" tabindex="0" aria-label="Déposer un fichier pour mise en plan">
+          Déposer le modèle<br><span style="opacity:0.5;font-size:0.6rem">STEP · STP · CATPart · CATProduct</span>
+        </div>
+        <div id="drawing-filename"></div>
+        <input type="file" id="drawing-file-input" accept=".step,.stp,.catpart,.catproduct">
+        <button id="btn-drawing" disabled>Générer la mise en plan</button>
+      </div>
 
     </section>
 
@@ -1241,6 +1372,21 @@
     </div>
   </div>
 
+  <!-- ── MODAL GRAPH ─────────────────────────────────────────────────── -->
+  <div class="modal-overlay" id="modal-graph" role="dialog" aria-modal="true" aria-labelledby="graph-title">
+    <div class="modal">
+      <div class="graph-modal-header">
+        <h2 class="modal-title" id="graph-title">Graphe de connaissances</h2>
+        <button class="modal-close" id="btn-graph-close" aria-label="Fermer">✕</button>
+      </div>
+      <div id="graph-svg-container">
+        <svg id="graph-svg"></svg>
+        <div id="graph-empty">Aucun document ingéré</div>
+      </div>
+    </div>
+  </div>
+  <div class="graph-tooltip" id="graph-tooltip"></div>
+
   <!-- ── APPLICATION LOGIC ─────────────────────────────────────────────── -->
   <script>
     (function () {
@@ -1359,6 +1505,7 @@
       const elBtnSaveClose    = $('btn-save-close');
       const elSaveNameInput   = $('save-name-input');
       const elBtnSaveConfirm  = $('btn-save-confirm');
+      const elDmuSection      = $('dmu-section');
 
       /* ── SETTINGS PERSISTENCE ──────────────────────────────────────── */
       function saveSettings() {
@@ -1479,6 +1626,7 @@
           pill.classList.add('selected');
           pill.setAttribute('aria-checked', 'true');
           state.scriptType = pill.dataset.value;
+          elDmuSection.style.display = state.scriptType === 'ehi_eha' ? 'block' : 'none';
         });
       });
 
@@ -1850,6 +1998,7 @@
         renderDims(state.script);
         $('viewport-panel').style.display = 'none';
         $('btn-toggle-3d').style.display  = 'none';
+        elDmuSection.style.display = state.scriptType === 'ehi_eha' ? 'block' : 'none';
 
         elModalLibrary.classList.remove('open');
       }
@@ -2113,12 +2262,343 @@
         applyDetectedType(detected);
       });
 
+      /* ── KNOWLEDGE GRAPH ────────────────────────────────────────────── */
+      const GRAPH_URL = 'http://localhost:8000/graph';
+      const elBtnGraph      = $('btn-graph');
+      const elModalGraph    = $('modal-graph');
+      const elBtnGraphClose = $('btn-graph-close');
+      const elGraphEmpty    = $('graph-empty');
+      const elGraphTooltip  = $('graph-tooltip');
+
+      const FILE_COLORS = [
+        '#00A3FF','#FF5F00','#7CFC00','#FF69B4','#FFD700',
+        '#00CED1','#FF6347','#9370DB','#20B2AA','#FF8C00',
+      ];
+      const fileColorMap = new Map();
+      function fileColor(name) {
+        if (!fileColorMap.has(name)) {
+          fileColorMap.set(name, FILE_COLORS[fileColorMap.size % FILE_COLORS.length]);
+        }
+        return fileColorMap.get(name);
+      }
+
+      let graphSimulation = null;
+
+      async function openGraph() {
+        elModalGraph.classList.add('open');
+        elGraphEmpty.style.display = 'none';
+        const svg = document.getElementById('graph-svg');
+        svg.innerHTML = '<text x="50%" y="50%" text-anchor="middle" fill="rgba(255,255,255,0.3)" font-size="11" letter-spacing="3" dy=".3em">CHARGEMENT...</text>';
+
+        try {
+          const res = await fetch(GRAPH_URL);
+          const data = await res.json();
+
+          svg.innerHTML = '';
+          if (!data.nodes || data.nodes.length === 0) {
+            elGraphEmpty.style.display = 'block';
+            return;
+          }
+          renderGraph(svg, data.nodes, data.edges);
+        } catch (err) {
+          svg.innerHTML = '';
+          elGraphEmpty.textContent = 'Erreur de chargement';
+          elGraphEmpty.style.display = 'block';
+        }
+      }
+
+      function renderGraph(svgEl, nodes, edges) {
+        const container = svgEl.parentElement;
+        const W = container.clientWidth  || 800;
+        const H = container.clientHeight || 500;
+
+        const svg = d3.select(svgEl)
+          .attr('viewBox', `0 0 ${W} ${H}`)
+          .call(d3.zoom().scaleExtent([0.2, 4]).on('zoom', e => g.attr('transform', e.transform)));
+
+        const g = svg.append('g');
+
+        const link = g.append('g').selectAll('line')
+          .data(edges).enter().append('line')
+          .attr('stroke', 'rgba(255,255,255,0.12)')
+          .attr('stroke-width', d => Math.max(0.5, d.weight * 2));
+
+        const node = g.append('g').selectAll('circle')
+          .data(nodes).enter().append('circle')
+          .attr('r', 6)
+          .attr('fill', d => fileColor(d.source))
+          .attr('stroke', 'rgba(0,0,0,0.5)')
+          .attr('stroke-width', 1)
+          .style('cursor', 'pointer')
+          .on('mouseover', (event, d) => {
+            elGraphTooltip.innerHTML =
+              `<strong style="color:${fileColor(d.source)}">${d.source}</strong> p.${d.page}<br>${d.label}`;
+            elGraphTooltip.style.display = 'block';
+          })
+          .on('mousemove', event => {
+            elGraphTooltip.style.left = (event.clientX + 14) + 'px';
+            elGraphTooltip.style.top  = (event.clientY - 10) + 'px';
+          })
+          .on('mouseout', () => { elGraphTooltip.style.display = 'none'; })
+          .call(d3.drag()
+            .on('start', (event, d) => { if (!event.active) sim.alphaTarget(0.3).restart(); d.fx = d.x; d.fy = d.y; })
+            .on('drag',  (event, d) => { d.fx = event.x; d.fy = event.y; })
+            .on('end',   (event, d) => { if (!event.active) sim.alphaTarget(0); d.fx = null; d.fy = null; })
+          );
+
+        const edgeMap = new Map();
+        edges.forEach(e => {
+          edgeMap.set(e.source, (edgeMap.get(e.source) || 0) + 1);
+          edgeMap.set(e.target, (edgeMap.get(e.target) || 0) + 1);
+        });
+        node.attr('r', d => 4 + Math.min((edgeMap.get(d.id) || 0) * 1.5, 10));
+
+        const nodeMap = new Map(nodes.map(n => [n.id, n]));
+        const sim = d3.forceSimulation(nodes)
+          .force('link', d3.forceLink(edges.map(e => ({ ...e, source: nodeMap.get(e.source), target: nodeMap.get(e.target) }))).id(d => d.id).distance(80).strength(0.5))
+          .force('charge', d3.forceManyBody().strength(-120))
+          .force('center', d3.forceCenter(W / 2, H / 2))
+          .force('collision', d3.forceCollide(14))
+          .on('tick', () => {
+            link.attr('x1', d => d.source.x).attr('y1', d => d.source.y)
+                .attr('x2', d => d.target.x).attr('y2', d => d.target.y);
+            node.attr('cx', d => d.x).attr('cy', d => d.y);
+          });
+
+        graphSimulation = sim;
+      }
+
+      elBtnGraph.addEventListener('click', openGraph);
+      elBtnGraphClose.addEventListener('click', () => {
+        elModalGraph.classList.remove('open');
+        if (graphSimulation) { graphSimulation.stop(); graphSimulation = null; }
+        elGraphTooltip.style.display = 'none';
+      });
+      elModalGraph.addEventListener('click', e => {
+        if (e.target === elModalGraph) elBtnGraphClose.click();
+      });
+
+      /* ── REVERSE ENGINEERING ───────────────────────────────────────── */
+      const REVERSE_URL = 'http://localhost:8000/reverse-engineer';
+      let reverseFile = null;
+
+      const elReverseDrop  = $('reverse-drop');
+      const elReverseInput = $('reverse-file-input');
+      const elReverseName  = $('reverse-filename');
+      const elBtnReverse   = $('btn-reverse');
+
+      function setReverseFile(f) {
+        reverseFile = f;
+        elReverseName.textContent = f ? f.name : '';
+        elBtnReverse.disabled = !f;
+      }
+
+      elReverseDrop.addEventListener('click', () => elReverseInput.click());
+      elReverseDrop.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') elReverseInput.click(); });
+      elReverseInput.addEventListener('change', () => setReverseFile(elReverseInput.files[0] || null));
+      elReverseDrop.addEventListener('dragover', e => { e.preventDefault(); elReverseDrop.classList.add('drag-over'); });
+      elReverseDrop.addEventListener('dragleave', () => elReverseDrop.classList.remove('drag-over'));
+      elReverseDrop.addEventListener('drop', e => {
+        e.preventDefault(); elReverseDrop.classList.remove('drag-over');
+        setReverseFile(e.dataTransfer.files[0] || null);
+      });
+
+      elBtnReverse.addEventListener('click', async () => {
+        if (!reverseFile) return;
+        $('spinner-label').textContent = 'Rétro-ingénierie en cours...';
+        showSpinner(); elBtnReverse.disabled = true;
+
+        const fd = new FormData();
+        fd.append('file', reverseFile);
+        fd.append('provider', state.provider);
+        fd.append('model', state.model);
+        fd.append('api_key', state.apiKey || '');
+
+        try {
+          const res = await fetch(REVERSE_URL, { method: 'POST', body: fd });
+          if (!res.ok) {
+            const err = await res.json().catch(() => ({ detail: 'Erreur réseau' }));
+            throw new Error(err.detail || 'Erreur HTTP ' + res.status);
+          }
+          const data = await res.json();
+          state.script = data.script || '';
+          state.scriptType = 'catscript';
+          elScriptTextarea.value = state.script;
+          document.querySelectorAll('#script-type-group .script-pill').forEach(p => {
+            const m = p.dataset.value === 'catscript';
+            p.classList.toggle('selected', m); p.setAttribute('aria-checked', String(m));
+          });
+          elOutputEmpty.style.display = 'none';
+          elSpinner.classList.remove('visible');
+          elErrorBanner.classList.remove('visible');
+          elOutputResult.classList.add('visible');
+          elResultTypeLabel.textContent = 'CATScript / VBA';
+          elConfidenceBadge.textContent = 'RÉTRO';
+          elConfidenceBadge.className = 'badge badge-MEDIUM';
+          elBtnSave.disabled = false;
+          renderDims(state.script);
+          $('viewport-panel').style.display = 'none';
+          $('btn-toggle-3d').style.display = 'none';
+        } catch (err) {
+          showError(err.message);
+        } finally {
+          elSpinner.classList.remove('visible');
+          elBtnReverse.disabled = !reverseFile;
+        }
+      });
+
+      /* ── DMU HARNESS ROUTING ────────────────────────────────────────── */
+      const DMU_URL = 'http://localhost:8000/harness-routing';
+      let dmuFile = null;
+
+      const elDmuDrop    = $('dmu-drop');
+      const elDmuInput   = $('dmu-file-input');
+      const elDmuName    = $('dmu-filename');
+      const elBtnDmu     = $('btn-dmu-route');
+
+      function setDmuFile(f) {
+        dmuFile = f;
+        elDmuName.textContent = f ? f.name : '';
+        elBtnDmu.disabled = !f;
+      }
+
+      elDmuDrop.addEventListener('click', () => elDmuInput.click());
+      elDmuDrop.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') elDmuInput.click(); });
+      elDmuInput.addEventListener('change', () => setDmuFile(elDmuInput.files[0] || null));
+      elDmuDrop.addEventListener('dragover', e => { e.preventDefault(); elDmuDrop.classList.add('drag-over'); });
+      elDmuDrop.addEventListener('dragleave', () => elDmuDrop.classList.remove('drag-over'));
+      elDmuDrop.addEventListener('drop', e => {
+        e.preventDefault(); elDmuDrop.classList.remove('drag-over');
+        setDmuFile(e.dataTransfer.files[0] || null);
+      });
+
+      elBtnDmu.addEventListener('click', async () => {
+        if (!dmuFile) return;
+        $('spinner-label').textContent = NO_KEY_PROVIDERS.has(state.provider) ? 'Modèle local — peut prendre 2-5 min...' : 'Routage harnais...';
+        showSpinner(); elBtnDmu.disabled = true;
+
+        const fd = new FormData();
+        fd.append('file', dmuFile);
+        fd.append('user_query', elQueryInput.value.trim());
+        fd.append('provider', state.provider);
+        fd.append('model', state.model);
+        fd.append('api_key', state.apiKey || '');
+
+        try {
+          const effectiveTimeout = NO_KEY_PROVIDERS.has(state.provider) ? TIMEOUT_MS_LOCAL : TIMEOUT_MS;
+          const controller = new AbortController();
+          const tid = setTimeout(() => controller.abort(), effectiveTimeout);
+          const res = await fetch(DMU_URL, { method: 'POST', body: fd, signal: controller.signal });
+          clearTimeout(tid);
+          if (!res.ok) {
+            const err = await res.json().catch(() => ({ detail: 'Erreur réseau' }));
+            throw new Error(err.detail || 'Erreur HTTP ' + res.status);
+          }
+          const data = await res.json();
+          state.script = data.script || '';
+          state.scriptType = 'ehi_eha';
+          elScriptTextarea.value = state.script;
+          document.querySelectorAll('#script-type-group .script-pill').forEach(p => {
+            const m = p.dataset.value === 'ehi_eha';
+            p.classList.toggle('selected', m); p.setAttribute('aria-checked', String(m));
+          });
+          elOutputEmpty.style.display = 'none';
+          elSpinner.classList.remove('visible');
+          elErrorBanner.classList.remove('visible');
+          elOutputResult.classList.add('visible');
+          elResultTypeLabel.textContent = 'EHI / EHA';
+          elConfidenceBadge.textContent = 'DMU';
+          elConfidenceBadge.className = 'badge badge-MEDIUM';
+          elBtnSave.disabled = false;
+          renderDims(state.script);
+          $('viewport-panel').style.display = 'none';
+          $('btn-toggle-3d').style.display = 'none';
+        } catch (err) {
+          showError(err.name === 'AbortError' ? 'Timeout — le modèle local a mis trop de temps.' : err.message);
+        } finally {
+          elSpinner.classList.remove('visible'); elBtnDmu.disabled = false;
+        }
+      });
+
+      /* ── AUTO DRAWING ───────────────────────────────────────────────────── */
+      const DRAWING_URL = 'http://localhost:8000/drawing';
+      let drawingFile = null;
+
+      const elDrawingDrop  = $('drawing-drop');
+      const elDrawingInput = $('drawing-file-input');
+      const elDrawingName  = $('drawing-filename');
+      const elBtnDrawing   = $('btn-drawing');
+
+      function setDrawingFile(f) {
+        drawingFile = f;
+        elDrawingName.textContent = f ? f.name : '';
+        elBtnDrawing.disabled = !f;
+      }
+
+      elDrawingDrop.addEventListener('click', () => elDrawingInput.click());
+      elDrawingDrop.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') elDrawingInput.click(); });
+      elDrawingInput.addEventListener('change', () => setDrawingFile(elDrawingInput.files[0] || null));
+      elDrawingDrop.addEventListener('dragover', e => { e.preventDefault(); elDrawingDrop.classList.add('drag-over'); });
+      elDrawingDrop.addEventListener('dragleave', () => elDrawingDrop.classList.remove('drag-over'));
+      elDrawingDrop.addEventListener('drop', e => {
+        e.preventDefault(); elDrawingDrop.classList.remove('drag-over');
+        setDrawingFile(e.dataTransfer.files[0] || null);
+      });
+
+      elBtnDrawing.addEventListener('click', async () => {
+        if (!drawingFile) return;
+        $('spinner-label').textContent = NO_KEY_PROVIDERS.has(state.provider) ? 'Modèle local — peut prendre 2-5 min...' : 'Mise en plan en cours...';
+        showSpinner(); elBtnDrawing.disabled = true;
+
+        const fd = new FormData();
+        fd.append('file', drawingFile);
+        fd.append('provider', state.provider);
+        fd.append('model', state.model);
+        fd.append('api_key', state.apiKey || '');
+
+        try {
+          const effectiveTimeout = NO_KEY_PROVIDERS.has(state.provider) ? TIMEOUT_MS_LOCAL : TIMEOUT_MS;
+          const controller = new AbortController();
+          const tid = setTimeout(() => controller.abort(), effectiveTimeout);
+          const res = await fetch(DRAWING_URL, { method: 'POST', body: fd, signal: controller.signal });
+          clearTimeout(tid);
+          if (!res.ok) {
+            const err = await res.json().catch(() => ({ detail: 'Erreur réseau' }));
+            throw new Error(err.detail || 'Erreur HTTP ' + res.status);
+          }
+          const data = await res.json();
+          state.script = data.script || '';
+          state.scriptType = 'catscript';
+          elScriptTextarea.value = state.script;
+          document.querySelectorAll('#script-type-group .script-pill').forEach(p => {
+            const m = p.dataset.value === 'catscript';
+            p.classList.toggle('selected', m); p.setAttribute('aria-checked', String(m));
+          });
+          elOutputEmpty.style.display = 'none';
+          elSpinner.classList.remove('visible');
+          elErrorBanner.classList.remove('visible');
+          elOutputResult.classList.add('visible');
+          elResultTypeLabel.textContent = 'CATScript / VBA';
+          elConfidenceBadge.textContent = 'MISE EN PLAN';
+          elConfidenceBadge.className = 'badge badge-MEDIUM';
+          elBtnSave.disabled = false;
+          renderDims(state.script);
+          $('viewport-panel').style.display = 'none';
+          $('btn-toggle-3d').style.display = 'none';
+        } catch (err) {
+          showError(err.name === 'AbortError' ? 'Timeout — le modèle local a mis trop de temps.' : err.message);
+        } finally {
+          elSpinner.classList.remove('visible'); elBtnDrawing.disabled = false;
+        }
+      });
+
       /* ── INIT ──────────────────────────────────────────────────────── */
       loadSettings();
       applySettingsToUI();
       loadLibrary();
       showEmpty();
       checkDataNotice();
+      elDmuSection.style.display = state.scriptType === 'ehi_eha' ? 'block' : 'none';
 
     }());
   </script>
