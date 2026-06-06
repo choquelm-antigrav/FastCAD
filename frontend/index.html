@@ -3,12 +3,205 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>CATScript-AI</title>
+  <title>FASTCAD</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&family=Syne:wght@700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/base16/dracula.min.css">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/vbscript.min.js"></script>
+
+  <!-- Three.js ESM -->
+  <script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.min.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}</script>
+  <script type="module">
+    import * as THREE from 'three';
+    import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+    let _renderer = null, _animId = null, _resizeObs = null;
+
+    const PALETTE = { main: 0x7A8A9A, feature: 0x00A3FF, hole: 0xFF5F00, branch: 0xA1665A };
+
+    function teardown() {
+      if (_animId)   { cancelAnimationFrame(_animId); _animId = null; }
+      if (_resizeObs){ _resizeObs.disconnect(); _resizeObs = null; }
+      if (_renderer) { _renderer.dispose(); _renderer = null; }
+    }
+
+    function mat(color, transparent) {
+      return new THREE.MeshStandardMaterial({
+        color, metalness: color === 0x7A8A9A ? 0.55 : 0.15, roughness: 0.45,
+        transparent: !!transparent, opacity: transparent ? 0.42 : 1,
+        depthWrite: !transparent,
+      });
+    }
+
+    // Accept [x,y,z] array OR {x,y,z} object — LLMs return both formats
+    function toVec3(v) {
+      if (Array.isArray(v))              return new THREE.Vector3(v[0] ?? 0, v[1] ?? 0, v[2] ?? 0);
+      if (v && typeof v === 'object')    return new THREE.Vector3(v.x ?? 0, v.y ?? 0, v.z ?? 0);
+      return new THREE.Vector3(0, 0, 0);
+    }
+
+    // Convert segments/bodies to array regardless of [] vs {} LLM output
+    function normaliseArray(raw) {
+      if (Array.isArray(raw)) return raw;
+      if (raw && typeof raw === 'object') return Object.values(raw);
+      return null;
+    }
+
+    // Flatten any LLM-invented wrapper: { scene:[{type,segments},{type,bodies},...] }
+    function normaliseGeo(raw) {
+      if (!raw) return raw;
+      // { scene: [...] } wrapper
+      if (Array.isArray(raw.scene)) {
+        const segments = [], bodies = [];
+        for (const item of raw.scene) {
+          const s = normaliseArray(item.segments); if (s) segments.push(...s);
+          const b = normaliseArray(item.bodies);   if (b) bodies.push(...b);
+        }
+        return { name: raw.name || raw.scene[0]?.name || 'Scene',
+                 type: segments.length ? 'harness' : 'part',
+                 segments: segments.length ? segments : undefined,
+                 bodies:   bodies.length   ? bodies   : undefined };
+      }
+      // { objects: [...] } or { items: [...] } wrapper
+      for (const key of ['objects','items','parts','elements']) {
+        if (Array.isArray(raw[key])) {
+          const segments = [], bodies = [];
+          for (const item of raw[key]) {
+            const s = normaliseArray(item.segments); if (s) segments.push(...s);
+            const b = normaliseArray(item.bodies);   if (b) bodies.push(...b);
+          }
+          if (segments.length || bodies.length)
+            return { name: raw.name || 'Scene',
+                     type: segments.length ? 'harness' : 'part',
+                     segments: segments.length ? segments : undefined,
+                     bodies:   bodies.length   ? bodies   : undefined };
+        }
+      }
+      return raw;
+    }
+
+    function buildScene(scene, geo) {
+      geo = normaliseGeo(geo);
+      const meshes = [];
+      console.log('[FastCAD 3D] buildScene — type:', geo.type,
+        '| segments:', geo.segments ? (Array.isArray(geo.segments) ? geo.segments.length : 'object') : 'none',
+        '| bodies:', geo.bodies ? (Array.isArray(geo.bodies) ? geo.bodies.length : 'object') : 'none');
+
+      // Support both explicit type:'harness' AND any geometry with a segments array
+      const segs = normaliseArray(geo.segments);
+      if (segs) {
+        for (const seg of segs) {
+          try {
+            if (!seg.from || !seg.to) continue;
+            const A   = toVec3(seg.from);
+            const B   = toVec3(seg.to);
+            const len = A.distanceTo(B);
+            if (len < 0.001) continue;                           // skip degenerate segment
+            const r   = typeof seg.r === 'number' && seg.r > 0 ? seg.r : 5;
+            const mid = A.clone().add(B).multiplyScalar(0.5);
+            const dir = B.clone().sub(A).normalize();
+            const m   = new THREE.Mesh(
+              new THREE.CylinderGeometry(r, r, len, 12),
+              mat(PALETTE[seg.color] ?? PALETTE.main, false)
+            );
+            m.position.copy(mid);
+            const yAxis = new THREE.Vector3(0, 1, 0);
+            if (dir.dot(yAxis) < -0.9999) {
+              m.quaternion.setFromAxisAngle(new THREE.Vector3(1, 0, 0), Math.PI);
+            } else {
+              m.quaternion.setFromUnitVectors(yAxis, dir);
+            }
+            scene.add(m); meshes.push(m);
+          } catch (_) { /* skip malformed segment */ }
+        }
+      }
+
+      // Bodies (mechanical parts OR harness fallback with bodies key)
+      if (Array.isArray(geo.bodies)) {
+        const sorted = [...geo.bodies].sort((a, b) => (a.color === 'hole' ? 1 : 0) - (b.color === 'hole' ? 1 : 0));
+        for (const b of sorted) {
+          try {
+            const isHole = b.color === 'hole';
+            const c = PALETTE[b.color] ?? PALETTE.main;
+            let g3;
+            if (b.shape === 'box') {
+              if (!(b.w > 0 && b.h > 0 && b.d > 0)) continue;
+              g3 = new THREE.BoxGeometry(b.w, b.h, b.d);
+            } else if (b.shape === 'cylinder') {
+              if (!(b.r > 0 && b.h > 0)) continue;
+              g3 = new THREE.CylinderGeometry(b.r, b.r, b.h, 20);
+            } else continue;
+            const m = new THREE.Mesh(g3, mat(c, isHole));
+            m.position.set(b.x ?? 0, b.y ?? 0, b.z ?? 0);
+            if (b.shape === 'cylinder') {
+              if (b.axis === 'x') m.rotation.z = Math.PI / 2;
+              else if (b.axis === 'z') m.rotation.x = Math.PI / 2;
+            }
+            scene.add(m); meshes.push(m);
+          } catch (_) { /* skip malformed body */ }
+        }
+      }
+
+      return meshes;
+    }
+
+    // Exposed globally — called after the canvas is already visible in the DOM.
+    // Defers actual init by one rAF so clientWidth/Height are non-zero.
+    window.render3D = function(canvas, geo) {
+      teardown();
+
+      requestAnimationFrame(() => {
+        try {
+          const scene = new THREE.Scene();
+          scene.background = new THREE.Color(0x010204);
+          scene.add(new THREE.GridHelper(800, 16, 0x0e0e0e, 0x0a0a0a));
+          scene.add(new THREE.AmbientLight(0xffffff, 0.45));
+          const sun = new THREE.DirectionalLight(0xffffff, 1.3);
+          sun.position.set(400, 600, 300); scene.add(sun);
+          const rim = new THREE.DirectionalLight(0x00A3FF, 0.35);
+          rim.position.set(-300, 150, -400); scene.add(rim);
+
+          const w = canvas.clientWidth  || canvas.offsetWidth  || 500;
+          const h = canvas.clientHeight || canvas.offsetHeight || 280;
+          const camera   = new THREE.PerspectiveCamera(42, w / h, 0.1, 20000);
+          const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+          renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+          renderer.setSize(w, h);
+          _renderer = renderer;
+
+          const controls = new OrbitControls(camera, renderer.domElement);
+          controls.enableDamping = true; controls.dampingFactor = 0.08;
+
+          const meshes = buildScene(scene, geo);
+          console.log('[FastCAD 3D] meshes créés:', meshes.length, '| canvas:', w, '×', h);
+
+          if (meshes.length) {
+            const box = new THREE.Box3();
+            meshes.forEach(m => box.expandByObject(m));
+            const center = new THREE.Vector3(), size = new THREE.Vector3();
+            box.getCenter(center); box.getSize(size);
+            const d = Math.max(size.x, size.y, size.z, 1);
+            camera.position.set(center.x + d * 1.6, center.y + d, center.z + d * 1.6);
+            camera.lookAt(center); controls.target.copy(center); controls.update();
+          } else {
+            camera.position.set(300, 200, 300); camera.lookAt(0, 0, 0);
+          }
+
+          (function loop() { _animId = requestAnimationFrame(loop); controls.update(); renderer.render(scene, camera); })();
+
+          _resizeObs = new ResizeObserver(() => {
+            const nw = canvas.clientWidth || 500, nh = canvas.clientHeight || 280;
+            camera.aspect = nw / nh; camera.updateProjectionMatrix(); renderer.setSize(nw, nh);
+          });
+          _resizeObs.observe(canvas);
+
+        } catch (err) {
+          console.warn('[render3D] erreur de rendu :', err);
+        }
+      });
+    };
+  </script>
 
   <style>
     /* ── DESIGN TOKENS ─────────────────────────────────────────────────── */
@@ -119,7 +312,7 @@
       position: relative;
       z-index: 1;
       display: grid;
-      grid-template-columns: 420px 1fr;
+      grid-template-columns: 1fr 1fr;
       height: 100vh;
       padding-top: 52px;
     }
@@ -138,6 +331,20 @@
     #panel-left {
       border-right: 1px solid var(--color-glass-border);
       padding: 2rem;
+      display: flex;
+      flex-direction: column;
+    }
+    #query-field-group {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+      margin-bottom: 1.5rem;
+    }
+    #query-field-group textarea {
+      flex: 1;
+      min-height: 220px;
+      resize: none;
     }
     #panel-right {
       padding: 2rem;
@@ -176,50 +383,44 @@
       border-color: var(--color-electric-blue);
     }
     select option { background: #0d1117; color: var(--color-white); }
-    textarea { min-height: 140px; line-height: 1.6; }
+    textarea { min-height: 140px; line-height: 1.6; resize: vertical; }
 
-    /* Radio group */
-    .radio-group {
-      display: flex;
-      flex-direction: column;
-      gap: 0.5rem;
-    }
-    .radio-item {
+    /* Script type pills */
+    .script-type-row {
       display: flex;
       align-items: center;
-      gap: 0.75rem;
-      padding: 0.65rem 1rem;
-      border: 1px solid var(--color-glass-border);
-      cursor: pointer;
-      transition: var(--trans-fast);
-      border-radius: var(--radius-btn);
+      gap: 0.5rem;
+      flex-wrap: wrap;
+      margin-bottom: 1.25rem;
     }
-    .radio-item:hover { border-color: rgba(255,255,255,0.2); }
-    .radio-item.selected { border-color: var(--color-electric-blue); }
-    .radio-item input[type="radio"] { display: none; }
-    .radio-dot {
-      width: 10px; height: 10px;
-      border-radius: 50%;
-      border: 1px solid var(--color-glass-border);
+    .script-type-row-label {
+      font-size: 0.62rem;
+      letter-spacing: 4px;
+      text-transform: uppercase;
+      color: var(--color-text-meta);
       flex-shrink: 0;
+    }
+    .script-pill {
+      font-family: var(--font-body);
+      font-size: 0.65rem;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      padding: 0.28rem 0.75rem;
+      border: 1px solid var(--color-glass-border);
+      border-radius: var(--radius-btn);
+      cursor: pointer;
+      color: var(--color-text-muted);
+      background: transparent;
       transition: var(--trans-fast);
     }
-    .radio-item.selected .radio-dot {
-      background: var(--color-electric-blue);
+    .script-pill:hover { border-color: rgba(255,255,255,0.25); color: var(--color-white); }
+    .script-pill.selected {
       border-color: var(--color-electric-blue);
-      box-shadow: 0 0 8px var(--color-electric-blue);
-    }
-    .radio-item-label {
-      font-size: 0.85rem;
-      font-family: var(--font-body);
-    }
-    .radio-item-desc {
-      font-size: 0.7rem;
-      color: var(--color-text-muted);
-      margin-left: auto;
+      color: var(--color-electric-blue);
+      background: rgba(0,163,255,0.08);
     }
 
-    /* Collapsible optional fields */
+    /* Left panel layout */
     .collapsible-trigger {
       display: flex;
       align-items: center;
@@ -431,33 +632,6 @@
       min-height: 280px;
     }
 
-    /* Sources */
-    #sources-panel {
-      border: 1px solid var(--color-glass-border);
-      padding: 1rem 1.25rem;
-      border-radius: var(--radius-btn);
-    }
-    .sources-title {
-      font-size: 0.7rem;
-      letter-spacing: 5px;
-      text-transform: uppercase;
-      color: var(--color-text-meta);
-      margin-bottom: 0.75rem;
-    }
-    #sources-list {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 0.5rem;
-    }
-    .source-chip {
-      font-size: 0.7rem;
-      letter-spacing: 1px;
-      padding: 0.25rem 0.65rem;
-      background: var(--color-glass);
-      border: 1px solid var(--color-glass-border);
-      color: var(--color-text-muted);
-      border-radius: var(--radius-btn);
-    }
 
     /* Export buttons */
     #export-bar {
@@ -520,13 +694,68 @@
     }
     .modal-close:hover { border-color: var(--color-magma); color: var(--color-magma); }
 
+    /* ── PDF UPLOAD ────────────────────────────────────────────────────── */
+    .upload-zone {
+      border: 1px dashed var(--color-glass-border);
+      padding: 1.25rem;
+      text-align: center;
+      cursor: pointer;
+      transition: var(--trans-fast);
+      position: relative;
+    }
+    .upload-zone:hover, .upload-zone.drag-over {
+      border-color: var(--color-electric-blue);
+      background: rgba(0, 163, 255, 0.04);
+    }
+    .upload-zone input[type="file"] {
+      position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%;
+    }
+    .upload-zone-label {
+      font-size: 0.75rem;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      color: var(--color-text-muted);
+      pointer-events: none;
+    }
+    .upload-zone-label span { color: var(--color-electric-blue); }
+    #ingest-status {
+      font-size: 0.72rem;
+      letter-spacing: 1px;
+      margin-top: 0.6rem;
+      min-height: 1.1rem;
+      color: var(--color-text-muted);
+    }
+    #ingest-status.ok  { color: #4ade80; }
+    #ingest-status.err { color: var(--color-magma); }
+    .doc-list {
+      margin-top: 0.75rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.3rem;
+      max-height: 90px;
+      overflow-y: auto;
+    }
+    .doc-chip {
+      font-size: 0.65rem;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      padding: 0.25rem 0.6rem;
+      border: 1px solid var(--color-glass-border);
+      color: var(--color-text-muted);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .doc-chip-count { color: var(--color-electric-blue); }
+
     /* ── SETTINGS MODAL ────────────────────────────────────────────────── */
     #modal-settings .field-group { margin-bottom: 1.25rem; }
 
     .provider-grid {
       display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 0.75rem;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 0.6rem;
       margin-bottom: 0;
     }
     .provider-card {
@@ -542,11 +771,209 @@
       color: var(--color-text-muted);
     }
     .provider-card:hover { border-color: rgba(255,255,255,0.2); color: var(--color-white); }
+    .provider-card { position: relative; }
+    .provider-link {
+      position: absolute; top: 4px; right: 5px;
+      font-size: 0.6rem; line-height: 1;
+      color: var(--color-text-meta);
+      text-decoration: none;
+      opacity: 0;
+      transition: opacity 0.2s ease;
+    }
+    .provider-card:hover .provider-link { opacity: 1; }
+    .provider-card.selected .provider-link { opacity: 0.5; }
     .provider-card.selected {
       border-color: var(--color-electric-blue);
       color: var(--color-electric-blue);
       background: rgba(0,163,255,0.05);
     }
+
+    /* ── 3D VIEWPORT ───────────────────────────────────────────────────── */
+    #viewport-panel {
+      border: 1px solid var(--color-glass-border);
+      border-radius: var(--radius-btn);
+      overflow: hidden;
+      background: rgba(0,0,0,0.35);
+    }
+    .viewport-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0.6rem 1rem;
+      border-bottom: 1px solid var(--color-glass-border);
+    }
+    .viewport-title {
+      font-size: 0.7rem;
+      letter-spacing: 5px;
+      text-transform: uppercase;
+      color: var(--color-magma);
+    }
+    #viewport-name {
+      font-size: 0.7rem;
+      letter-spacing: 2px;
+      color: var(--color-text-muted);
+    }
+    #btn-viewport-close {
+      background: none;
+      border: 1px solid var(--color-glass-border);
+      color: var(--color-text-muted);
+      width: 26px; height: 26px;
+      cursor: pointer; font-size: 0.8rem;
+      display: flex; align-items: center; justify-content: center;
+      transition: var(--trans-fast);
+      border-radius: var(--radius-btn);
+      flex-shrink: 0;
+    }
+    #btn-viewport-close:hover { border-color: var(--color-magma); color: var(--color-magma); }
+    #viewport-loading {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.75rem;
+      height: 280px;
+    }
+    #viewport-canvas {
+      display: none;
+      width: 100%;
+      height: 280px;
+    }
+    .viewport-hint {
+      font-size: 0.62rem;
+      letter-spacing: 1px;
+      color: var(--color-text-meta);
+      text-align: center;
+      padding: 0.4rem;
+      border-top: 1px solid var(--color-glass-border);
+    }
+    #btn-toggle-3d {
+      cursor: pointer;
+      background: rgba(255,95,0,0.1);
+      border: 1px solid rgba(255,95,0,0.3);
+      color: var(--color-magma);
+      padding: 0.25rem 0.7rem;
+      font-size: 0.65rem;
+      letter-spacing: 3px;
+      text-transform: uppercase;
+      font-weight: 700;
+      border-radius: var(--radius-btn);
+      transition: var(--trans-fast);
+    }
+    #btn-toggle-3d:hover { background: rgba(255,95,0,0.2); }
+
+    /* ── F-1 DIMS PANEL ────────────────────────────────────────────────── */
+    #dims-panel {
+      border: 1px solid var(--color-glass-border);
+      border-radius: var(--radius-btn);
+      overflow: hidden;
+    }
+    .dims-header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 0.6rem 1rem; cursor: pointer; user-select: none;
+      transition: var(--trans-fast);
+    }
+    .dims-header:hover { background: rgba(255,255,255,0.02); }
+    .dims-header-left { display: flex; align-items: center; gap: 0.75rem; }
+    .dims-arrow { font-size: 0.6rem; transition: transform 0.25s ease; color: var(--color-text-meta); }
+    .dims-arrow.open { transform: rotate(90deg); }
+    .dims-count {
+      font-size: 0.65rem; letter-spacing: 2px; text-transform: uppercase;
+      color: var(--color-text-meta);
+    }
+    .dims-body { display: none; border-top: 1px solid var(--color-glass-border); }
+    .dims-body.open { display: block; }
+    .dims-table { width: 100%; border-collapse: collapse; }
+    .dims-table th {
+      font-size: 0.6rem; letter-spacing: 3px; text-transform: uppercase;
+      color: var(--color-text-meta); padding: 0.45rem 1rem; text-align: left;
+      border-bottom: 1px solid var(--color-glass-border); font-weight: 400;
+    }
+    .dims-table td {
+      padding: 0.32rem 1rem; font-family: 'Courier New', monospace; font-size: 0.75rem;
+      border-bottom: 1px solid rgba(255,255,255,0.03); color: var(--color-text-muted);
+    }
+    .dims-table td:nth-child(2) { color: var(--color-electric-blue); font-weight: 600; }
+    .dims-table td:nth-child(3) { color: var(--color-text-meta); font-size: 0.68rem; }
+    .dims-table tr:last-child td { border-bottom: none; }
+    .dims-empty {
+      padding: 1rem; font-size: 0.72rem; letter-spacing: 2px;
+      color: var(--color-text-meta); text-align: center;
+    }
+
+    /* ── F-2 LIBRARY ───────────────────────────────────────────────────── */
+    #btn-library {
+      font-family: var(--font-display); font-size: 0.7rem; letter-spacing: 3px;
+      text-transform: uppercase; cursor: pointer; border-radius: var(--radius-btn);
+      padding: 0.3rem 0.85rem; background: none;
+      border: 1px solid var(--color-glass-border); color: var(--color-text-muted);
+      transition: var(--trans-fast);
+    }
+    #btn-library:hover { border-color: var(--color-electric-blue); color: var(--color-electric-blue); }
+    #btn-save {
+      background: transparent; color: var(--color-text-muted);
+      border: 1px solid var(--color-glass-border); padding: 0.7rem 1.4rem;
+      font-family: var(--font-display); font-size: 0.8rem; text-transform: uppercase;
+      letter-spacing: 3px; cursor: pointer; border-radius: var(--radius-btn);
+      transition: var(--trans-fast);
+    }
+    #btn-save:hover:not(:disabled) { border-color: var(--color-magma); color: var(--color-magma); }
+    #btn-save:disabled { opacity: 0.25; cursor: not-allowed; }
+    #modal-library .modal {
+      width: 660px; max-height: 80vh; display: flex; flex-direction: column; padding: 0;
+    }
+    .lib-modal-header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 1.5rem 2rem; border-bottom: 1px solid var(--color-glass-border); flex-shrink: 0;
+    }
+    .lib-search-bar {
+      padding: 1rem 1.5rem; border-bottom: 1px solid var(--color-glass-border); flex-shrink: 0;
+    }
+    .lib-search-bar input {
+      width: 100%; background: var(--color-glass); border: 1px solid var(--color-glass-border);
+      color: var(--color-white); font-family: var(--font-body); font-size: 0.85rem;
+      padding: 0.65rem 1rem; outline: none; border-radius: var(--radius-btn); transition: var(--trans-fast);
+    }
+    .lib-search-bar input:focus { border-color: var(--color-electric-blue); }
+    .lib-list {
+      flex: 1; overflow-y: auto; padding: 1rem 1.5rem;
+      scrollbar-width: thin; scrollbar-color: var(--color-glass-border) transparent;
+      display: flex; flex-direction: column; gap: 0.5rem; min-height: 200px;
+    }
+    .lib-empty {
+      flex: 1; display: flex; align-items: center; justify-content: center;
+      font-size: 0.72rem; letter-spacing: 3px; text-transform: uppercase;
+      color: var(--color-text-meta); opacity: 0.5;
+    }
+    .lib-card {
+      background: var(--color-glass); border: 1px solid var(--color-glass-border);
+      padding: 0.85rem 1rem; display: flex; align-items: center; gap: 1rem;
+      border-radius: var(--radius-btn); transition: var(--trans-fast);
+    }
+    .lib-card:hover { border-color: rgba(255,255,255,0.15); }
+    .lib-card-body { flex: 1; min-width: 0; }
+    .lib-card-name {
+      font-family: var(--font-display); font-size: 0.85rem; letter-spacing: 1px;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 0.2rem;
+    }
+    .lib-card-meta {
+      font-size: 0.65rem; letter-spacing: 2px; text-transform: uppercase;
+      color: var(--color-text-meta); display: flex; gap: 0.75rem;
+    }
+    .lib-card-type { color: var(--color-electric-blue); }
+    .lib-card-actions { display: flex; gap: 0.5rem; flex-shrink: 0; }
+    .lib-btn {
+      font-size: 0.65rem; letter-spacing: 2px; text-transform: uppercase; cursor: pointer;
+      padding: 0.3rem 0.65rem; border-radius: var(--radius-btn); transition: var(--trans-fast);
+      font-family: var(--font-body);
+    }
+    .lib-btn-load {
+      background: rgba(0,163,255,0.1); border: 1px solid rgba(0,163,255,0.3); color: var(--color-electric-blue);
+    }
+    .lib-btn-load:hover { background: rgba(0,163,255,0.2); }
+    .lib-btn-del {
+      background: rgba(255,50,50,0.08); border: 1px solid rgba(255,50,50,0.2); color: #ff5555;
+    }
+    .lib-btn-del:hover { background: rgba(255,50,50,0.18); }
+    #modal-save .modal { width: 440px; }
 
     /* ── DATA NOTICE MODAL ─────────────────────────────────────────────── */
     #modal-notice .notice-icon {
@@ -575,9 +1002,10 @@
 
   <!-- TITLE BAR -->
   <header id="titlebar">
-    <div class="brand">CAT<span>Script</span>-AI</div>
+    <div class="brand">FAST<span>CAD</span></div>
     <div id="titlebar-right">
       <div id="provider-badge">NO PROVIDER</div>
+      <button id="btn-library" aria-label="Bibliothèque de scripts">LIBRARY</button>
       <button id="btn-settings" title="Paramètres" aria-label="Ouvrir les paramètres">⚙</button>
     </div>
   </header>
@@ -588,67 +1016,33 @@
     <!-- LEFT PANEL — INPUT & SETTINGS -->
     <section id="panel-left" aria-label="Formulaire de génération">
 
-      <div class="field-group">
+      <div class="field-group" id="query-field-group">
         <label class="field-label" for="query-input">01 _ Opération CATIA</label>
         <textarea
           id="query-input"
-          placeholder="Ex: Créer un User Feature paramétrique avec 3 paramètres d'entrée et une loi de gestion de longueur de câble..."
+          placeholder="Ex: Je veux créer un support équerre avec une semelle horizontale de 160 × 90 mm, épaisseur 6 mm, et une nervure verticale trapézoïdale de 70 mm de hauteur centrée sur la semelle..."
           aria-label="Description de l'opération CATIA"
         ></textarea>
       </div>
 
-      <div class="field-group">
-        <span class="field-label">02 _ Type de script</span>
-        <div class="radio-group" id="script-type-group" role="radiogroup" aria-label="Type de script">
-
-          <label class="radio-item selected" data-value="catscript">
-            <input type="radio" name="script_type" value="catscript" checked>
-            <span class="radio-dot"></span>
-            <span class="radio-item-label">CATScript / VBA</span>
-            <span class="radio-item-desc">Automation</span>
-          </label>
-
-          <label class="radio-item" data-value="ekl">
-            <input type="radio" name="script_type" value="ekl">
-            <span class="radio-dot"></span>
-            <span class="radio-item-label">EKL</span>
-            <span class="radio-item-desc">Knowledge</span>
-          </label>
-
-          <label class="radio-item" data-value="ehi_eha">
-            <input type="radio" name="script_type" value="ehi_eha">
-            <span class="radio-dot"></span>
-            <span class="radio-item-label">EHI / EHA</span>
-            <span class="radio-item-desc">Harness</span>
-          </label>
-
-        </div>
+      <div class="script-type-row" id="script-type-group" role="radiogroup" aria-label="Type de script">
+        <span class="script-type-row-label">Type de script généré</span>
+        <button class="script-pill selected" data-value="catscript" role="radio" aria-checked="true">CATScript</button>
+        <button class="script-pill" data-value="ekl" role="radio" aria-checked="false">EKL</button>
+        <button class="script-pill" data-value="ehi_eha" role="radio" aria-checked="false">EHI/EHA</button>
+        <span id="script-type-badge" style="font-size:0.6rem;letter-spacing:2px;color:var(--color-electric-blue);margin-left:0.25rem;">DÉTECTION AUTO</span>
       </div>
 
+      <div class="sep-scan"></div>
+
       <div class="field-group">
-        <div class="sep-scan"></div>
-        <div class="collapsible-trigger" id="optional-trigger" aria-expanded="false" aria-controls="optional-body">
-          <span class="collapsible-arrow" id="optional-arrow">&#9654;</span>
-          <span>03 _ Paramètres optionnels</span>
+        <span class="field-label">04 _ Base de connaissances PDF</span>
+        <div class="upload-zone" id="upload-zone" role="button" aria-label="Déposer un PDF à ingérer" tabindex="0">
+          <input type="file" id="pdf-input" accept=".pdf" aria-label="Sélectionner un fichier PDF">
+          <p class="upload-zone-label">Déposer un PDF ou <span>parcourir</span></p>
         </div>
-        <div class="collapsible-body" id="optional-body" role="region">
-
-          <div>
-            <label class="field-label" for="part-type">Type de pièce</label>
-            <input type="text" id="part-type" placeholder="Ex: Part, Product, Drawing...">
-          </div>
-
-          <div>
-            <label class="field-label" for="axis-system">Système d'axes</label>
-            <input type="text" id="axis-system" placeholder="Ex: Absolu, Relatif, CATIA V5...">
-          </div>
-
-          <div>
-            <label class="field-label" for="harness-standard">Standard harnais</label>
-            <input type="text" id="harness-standard" placeholder="Ex: ASD, EN3197, interne Airbus...">
-          </div>
-
-        </div>
+        <div id="ingest-status" aria-live="polite"></div>
+        <div class="doc-list" id="doc-list" aria-label="Documents ingérés"></div>
       </div>
 
       <div class="sep-scan"></div>
@@ -671,7 +1065,7 @@
       <!-- Spinner -->
       <div id="spinner" role="status" aria-label="Génération en cours">
         <div class="spinner-ring" aria-hidden="true"></div>
-        <span class="spinner-label">Génération...</span>
+        <span class="spinner-label" id="spinner-label">Génération...</span>
       </div>
 
       <!-- Error -->
@@ -682,7 +1076,25 @@
 
         <div class="output-meta">
           <span class="output-meta-label" id="result-type-label">Script</span>
-          <span class="badge badge-HIGH" id="confidence-badge">HIGH</span>
+          <div style="display:flex;align-items:center;gap:0.75rem;">
+            <button id="btn-toggle-3d" style="display:none;" aria-label="Afficher aperçu 3D">APERÇU 3D</button>
+            <span class="badge badge-HIGH" id="confidence-badge">HIGH</span>
+          </div>
+        </div>
+
+        <!-- 3D viewport — hidden until geometry loads -->
+        <div id="viewport-panel" style="display:none;">
+          <div class="viewport-header">
+            <span class="viewport-title">Aperçu 3D</span>
+            <span id="viewport-name"></span>
+            <button id="btn-viewport-close" aria-label="Fermer l'aperçu 3D">✕</button>
+          </div>
+          <div id="viewport-loading" role="status">
+            <div class="spinner-ring" style="width:28px;height:28px;" aria-hidden="true"></div>
+            <span style="font-size:0.7rem;letter-spacing:3px;color:var(--color-text-muted);">CALCUL 3D...</span>
+          </div>
+          <canvas id="viewport-canvas" aria-label="Aperçu 3D de la pièce"></canvas>
+          <p class="viewport-hint">Molette pour zoomer · Glisser pour pivoter · Clic droit pour déplacer</p>
         </div>
 
         <div id="script-container">
@@ -693,14 +1105,35 @@
           ></textarea>
         </div>
 
-        <div id="sources-panel">
-          <div class="sources-title">Sources</div>
-          <div id="sources-list" aria-label="Documents sources"></div>
+        <!-- F-1 : Vérification dimensionnelle -->
+        <div id="dims-panel" style="display:none;">
+          <div class="dims-header" id="dims-toggle" role="button" tabindex="0" aria-expanded="false">
+            <div class="dims-header-left">
+              <span class="dims-arrow" id="dims-arrow">▶</span>
+              <span class="field-label" style="margin:0;">05 _ Cotes extraites</span>
+            </div>
+            <span class="dims-count" id="dims-count"></span>
+          </div>
+          <div class="dims-body" id="dims-body">
+            <table class="dims-table" aria-label="Cotes extraites du script">
+              <thead>
+                <tr>
+                  <th>Paramètre</th>
+                  <th>Valeur</th>
+                  <th>Ligne</th>
+                </tr>
+              </thead>
+              <tbody id="dims-tbody"></tbody>
+            </table>
+          </div>
         </div>
 
         <div id="export-bar">
           <button id="btn-copy" class="btn btn-ghost" aria-label="Copier dans le presse-papiers">
             Copier
+          </button>
+          <button id="btn-save" disabled aria-label="Sauvegarder dans la bibliothèque">
+            Sauvegarder
           </button>
           <button id="btn-download" class="btn btn-outline" aria-label="Télécharger le script">
             Télécharger
@@ -723,10 +1156,13 @@
       <div class="field-group">
         <span class="field-label">Provider IA</span>
         <div class="provider-grid" id="provider-grid" role="radiogroup" aria-label="Sélectionner un provider">
-          <div class="provider-card selected" data-provider="anthropic" role="radio" aria-checked="true" tabindex="0">Anthropic</div>
-          <div class="provider-card" data-provider="google"    role="radio" aria-checked="false" tabindex="0">Google</div>
-          <div class="provider-card" data-provider="openai"    role="radio" aria-checked="false" tabindex="0">OpenAI</div>
-          <div class="provider-card" data-provider="ollama"    role="radio" aria-checked="false" tabindex="0">Ollama</div>
+          <div class="provider-card selected" data-provider="anthropic"  role="radio" aria-checked="true"  tabindex="0">Anthropic</div>
+          <div class="provider-card" data-provider="openrouter" role="radio" aria-checked="false" tabindex="0">OpenRouter</div>
+          <div class="provider-card" data-provider="openai"     role="radio" aria-checked="false" tabindex="0">OpenAI</div>
+          <div class="provider-card" data-provider="ollama"     role="radio" aria-checked="false" tabindex="0">Ollama</div>
+          <div class="provider-card" data-provider="deepseek"   role="radio" aria-checked="false" tabindex="0">DeepSeek</div>
+          <div class="provider-card" data-provider="kimi"       role="radio" aria-checked="false" tabindex="0">Kimi</div>
+          <div class="provider-card" data-provider="nemotron"   role="radio" aria-checked="false" tabindex="0">Nemotron</div>
         </div>
       </div>
 
@@ -734,7 +1170,7 @@
 
       <div class="field-group">
         <label class="field-label" for="settings-model">Modèle</label>
-        <input type="text" id="settings-model" placeholder="Ex: claude-3-5-sonnet-20241022">
+        <select id="settings-model" aria-label="Sélectionner un modèle"></select>
       </div>
 
       <div class="field-group">
@@ -763,22 +1199,98 @@
     </div>
   </div>
 
+  <!-- ── MODAL LIBRARY ───────────────────────────────────────────────── -->
+  <div class="modal-overlay" id="modal-library" role="dialog" aria-modal="true" aria-labelledby="library-title">
+    <div class="modal">
+      <div class="lib-modal-header">
+        <h2 class="modal-title" id="library-title">Bibliothèque</h2>
+        <button class="modal-close" id="btn-library-close" aria-label="Fermer">✕</button>
+      </div>
+      <div class="lib-search-bar">
+        <input type="text" id="lib-search" placeholder="Rechercher..." aria-label="Rechercher dans la bibliothèque">
+      </div>
+      <div class="lib-list" id="lib-list" aria-label="Scripts sauvegardés"></div>
+    </div>
+  </div>
+
+  <!-- ── MODAL SAVE ────────────────────────────────────────────────────── -->
+  <div class="modal-overlay" id="modal-save" role="dialog" aria-modal="true" aria-labelledby="save-title">
+    <div class="modal">
+      <div class="modal-header">
+        <h2 class="modal-title" id="save-title">Sauvegarder le script</h2>
+        <button class="modal-close" id="btn-save-close" aria-label="Fermer">✕</button>
+      </div>
+      <div class="field-group">
+        <label class="field-label" for="save-name-input">Nom</label>
+        <input type="text" id="save-name-input" placeholder="Ex: Support équerre 160×90" maxlength="80">
+      </div>
+      <button id="btn-save-confirm" class="btn btn-solid">Confirmer</button>
+    </div>
+  </div>
+
   <!-- ── APPLICATION LOGIC ─────────────────────────────────────────────── -->
   <script>
     (function () {
       'use strict';
 
+      /* ── MODELS CATALOG ────────────────────────────────────────────── */
+      const MODELS = {
+        anthropic: [
+          { id: 'claude-haiku-4-5-20251001',              label: 'Claude Haiku 4.5  — rapide, économique' },
+          { id: 'claude-sonnet-4-6',                      label: 'Claude Sonnet 4.6 — équilibré' },
+          { id: 'claude-opus-4-8',                        label: 'Claude Opus 4.8  — le plus puissant' },
+        ],
+        openrouter: [
+          { id: 'google/gemma-4-31b-it:free',                   label: 'Gemma 4 31B             ✦' },
+          { id: 'google/gemma-4-26b-a4b-it:free',               label: 'Gemma 4 26B MoE         ✦' },
+          { id: 'nvidia/nemotron-3-super-120b-a12b:free',       label: 'Nemotron Super 120B     ✦' },
+          { id: 'nvidia/nemotron-3-ultra-550b-a55b:free',       label: 'Nemotron Ultra 550B     ✦' },
+          { id: 'moonshotai/kimi-k2.6:free',                    label: 'Kimi K2.6               ✦' },
+          { id: 'meta-llama/llama-3.3-70b-instruct:free',       label: 'Llama 3.3 70B           ✦' },
+        ],
+        openai: [
+          { id: 'gpt-4o-mini',                            label: 'GPT-4o Mini — économique' },
+          { id: 'gpt-4o',                                 label: 'GPT-4o' },
+          { id: 'gpt-4-turbo',                            label: 'GPT-4 Turbo' },
+        ],
+        ollama: [
+          { id: 'llama3.2',                               label: 'Llama 3.2  (local, gratuit)' },
+          { id: 'llama3.1',                               label: 'Llama 3.1  (local, gratuit)' },
+          { id: 'mistral',                                label: 'Mistral    (local, gratuit)' },
+          { id: 'codellama',                              label: 'Code Llama (local, gratuit)' },
+          { id: 'phi3',                                   label: 'Phi-3      (local, léger)' },
+        ],
+        deepseek: [
+          { id: 'deepseek-chat',                          label: 'DeepSeek V3   — très bon en code, ~$0.014/Mtok' },
+          { id: 'deepseek-reasoner',                      label: 'DeepSeek R1   — raisonnement, plus lent' },
+          { id: 'deepseek-coder',                         label: 'DeepSeek Coder — spécialisé code' },
+        ],
+        kimi: [
+          { id: 'moonshot-v1-8k',                         label: 'Kimi 8k   — rapide, contexte court' },
+          { id: 'moonshot-v1-32k',                        label: 'Kimi 32k  — contexte long' },
+          { id: 'moonshot-v1-128k',                       label: 'Kimi 128k — contexte très long' },
+        ],
+        nemotron: [
+          { id: 'meta/llama-3.1-70b-instruct',            label: 'Llama 3.1 70B  — gratuit' },
+          { id: 'meta/llama-3.3-70b-instruct',            label: 'Llama 3.3 70B  — gratuit' },
+        ],
+      };
+
       /* ── CONSTANTS ─────────────────────────────────────────────────── */
       const API_URL       = 'http://localhost:8000/generate';
-      const TIMEOUT_MS    = 30000;
+      const GEOMETRY_URL  = 'http://localhost:8000/geometry';
+      const INGEST_URL    = 'http://localhost:8000/ingest';
+      const TIMEOUT_MS    = 120000;
       const LS_SETTINGS   = 'catscript_settings';
       const LS_NOTICE     = 'data_notice_accepted';
-      const PROVIDERS     = ['anthropic', 'google', 'openai', 'ollama'];
+      const LS_DOCS       = 'catscript_docs';
+      const LS_LIBRARY    = 'fastcad_library';
+      const PROVIDERS     = ['anthropic', 'openrouter', 'openai', 'ollama'];
 
       /* ── STATE ─────────────────────────────────────────────────────── */
       let state = {
         provider:   'anthropic',
-        model:      '',
+        model:      'claude-haiku-4-5-20251001',
         apiKey:     '',
         scriptType: 'catscript',
         script:     null,
@@ -803,14 +1315,20 @@
       const elScriptTextarea  = $('script-textarea');
       const elConfidenceBadge = $('confidence-badge');
       const elResultTypeLabel = $('result-type-label');
-      const elSourcesList     = $('sources-list');
       const elBtnCopy         = $('btn-copy');
       const elBtnDownload     = $('btn-download');
+      const elBtnSave         = $('btn-save');
       const elModalNotice     = $('modal-notice');
       const elBtnNoticeAccept = $('btn-notice-accept');
-      const elOptionalTrigger = $('optional-trigger');
-      const elOptionalArrow   = $('optional-arrow');
-      const elOptionalBody    = $('optional-body');
+      const elBtnLibrary      = $('btn-library');
+      const elModalLibrary    = $('modal-library');
+      const elBtnLibraryClose = $('btn-library-close');
+      const elLibSearch       = $('lib-search');
+      const elLibList         = $('lib-list');
+      const elModalSave       = $('modal-save');
+      const elBtnSaveClose    = $('btn-save-close');
+      const elSaveNameInput   = $('save-name-input');
+      const elBtnSaveConfirm  = $('btn-save-confirm');
 
       /* ── SETTINGS PERSISTENCE ──────────────────────────────────────── */
       function saveSettings() {
@@ -832,8 +1350,18 @@
         } catch (_) { /* malformed data — ignore */ }
       }
 
+      function populateModelSelect(provider) {
+        const models = MODELS[provider] || [];
+        elSettingsModel.innerHTML = models
+          .map(m => `<option value="${m.id}">${m.label}</option>`)
+          .join('');
+        const currentValid = models.some(m => m.id === state.model);
+        elSettingsModel.value = currentValid ? state.model : (models[0] ? models[0].id : '');
+        state.model = elSettingsModel.value;
+      }
+
       function applySettingsToUI() {
-        elSettingsModel.value  = state.model;
+        populateModelSelect(state.provider);
         elSettingsApiKey.value = state.apiKey;
 
         elProviderGrid.querySelectorAll('.provider-card').forEach(card => {
@@ -884,6 +1412,7 @@
             c.classList.toggle('selected', c === card);
             c.setAttribute('aria-checked', String(c === card));
           });
+          populateModelSelect(state.provider);
           updateProviderBadge();
           updateGenerateButton();
           saveSettings();
@@ -894,7 +1423,7 @@
         });
       });
 
-      elSettingsModel.addEventListener('input', () => {
+      elSettingsModel.addEventListener('change', () => {
         state.model = elSettingsModel.value;
         saveSettings();
       });
@@ -907,21 +1436,18 @@
       });
 
       /* ── SCRIPT TYPE RADIO ─────────────────────────────────────────── */
-      document.querySelectorAll('#script-type-group .radio-item').forEach(item => {
-        item.addEventListener('click', () => {
-          document.querySelectorAll('#script-type-group .radio-item').forEach(i => i.classList.remove('selected'));
-          item.classList.add('selected');
-          item.querySelector('input[type="radio"]').checked = true;
-          state.scriptType = item.dataset.value;
+      document.querySelectorAll('#script-type-group .script-pill').forEach(pill => {
+        pill.addEventListener('click', () => {
+          document.querySelectorAll('#script-type-group .script-pill').forEach(p => {
+            p.classList.remove('selected');
+            p.setAttribute('aria-checked', 'false');
+          });
+          pill.classList.add('selected');
+          pill.setAttribute('aria-checked', 'true');
+          state.scriptType = pill.dataset.value;
         });
       });
 
-      /* ── COLLAPSIBLE OPTIONAL FIELDS ───────────────────────────────── */
-      elOptionalTrigger.addEventListener('click', () => {
-        const isOpen = elOptionalBody.classList.toggle('open');
-        elOptionalArrow.classList.toggle('open', isOpen);
-        elOptionalTrigger.setAttribute('aria-expanded', String(isOpen));
-      });
 
       /* ── OUTPUT STATE MACHINE ──────────────────────────────────────── */
       function showEmpty() {
@@ -957,30 +1483,110 @@
         elScriptTextarea.value = data.script || '';
 
         const level = (data.confidence || 'LOW').toUpperCase();
-        elConfidenceBadge.textContent = level;
+        const CONF_LABELS = {
+          HIGH:   'Sources documentées',
+          MEDIUM: 'Sources partielles',
+          LOW:    'Hors base documentaire',
+        };
+        const CONF_TIPS = {
+          HIGH:   'La base de connaissances PDF contient des références directes pour cette opération.',
+          MEDIUM: 'Des références partielles ont été trouvées — vérifier le script avant usage.',
+          LOW:    'Aucune référence solide dans la base PDF. Script généré par inférence — validation manuelle obligatoire.',
+        };
+        elConfidenceBadge.textContent = CONF_LABELS[level] || level;
+        elConfidenceBadge.title       = CONF_TIPS[level] || '';
         elConfidenceBadge.className   = 'badge badge-' + (level === 'HIGH' ? 'HIGH' : level === 'MEDIUM' ? 'MEDIUM' : 'LOW');
 
-        elSourcesList.innerHTML = '';
-        const sources = Array.isArray(data.sources) ? data.sources : [];
-        if (sources.length === 0) {
-          const chip = document.createElement('span');
-          chip.className   = 'source-chip';
-          chip.textContent = 'Aucune source';
-          elSourcesList.appendChild(chip);
-        } else {
-          sources.forEach(src => {
-            const chip = document.createElement('span');
-            chip.className   = 'source-chip';
-            const name = src.filename || src.name || 'Document';
-            const page = src.page ? ' · p.' + src.page : '';
-            chip.textContent = name + page;
-            elSourcesList.appendChild(chip);
-          });
-        }
+
 
         state.script = data.script || '';
+        elBtnSave.disabled = false;
         elOutputResult.classList.add('visible');
+        renderDims(state.script);
+
+        // Hide previous 3D state before loading new geometry
+        $('viewport-panel').style.display = 'none';
+        $('btn-toggle-3d').style.display  = 'none';
+        loadGeometry(elQueryInput.value.trim(), state.scriptType);
       }
+
+      /* ── 3D GEOMETRY LOADER ────────────────────────────────────────── */
+      async function loadGeometry(query, scriptType) {
+        const panel   = $('viewport-panel');
+        const loading = $('viewport-loading');
+        const canvas  = $('viewport-canvas');
+        const btnToggle = $('btn-toggle-3d');
+        const nameEl  = $('viewport-name');
+
+        panel.style.display   = 'block';
+        loading.style.display = 'flex';
+        canvas.style.display  = 'none';
+
+        try {
+          const res = await fetch(GEOMETRY_URL, {
+            method:  'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body:    JSON.stringify({
+              query,
+              script_type: scriptType ?? '',
+              provider: state.provider,
+              model:    state.model,
+              api_key:  state.apiKey,
+            }),
+          });
+          if (!res.ok) throw new Error('HTTP ' + res.status);
+          const data = await res.json();
+
+          console.log('[FastCAD 3D] geometry reçue:', JSON.stringify(data.geometry, null, 2));
+          if (data.geometry && typeof window.render3D === 'function') {
+            nameEl.textContent    = data.geometry.name || '';
+            loading.style.display = 'none';
+            canvas.style.display  = 'block';
+            window.render3D(canvas, data.geometry);
+            btnToggle.style.display = 'inline-block';
+          } else {
+            loading.style.display = 'none';
+            canvas.style.display  = 'none';
+            let msg = panel.querySelector('.viewport-no-preview');
+            if (!msg) {
+              msg = document.createElement('p');
+              msg.className = 'viewport-no-preview';
+              msg.style.cssText = 'text-align:center;padding:2rem;font-size:0.75rem;letter-spacing:2px;color:rgba(255,255,255,0.25);text-transform:uppercase;';
+              panel.querySelector('.viewport-header').insertAdjacentElement('afterend', msg);
+            }
+            msg.textContent = 'Aperçu 3D non disponible';
+            msg.style.display = 'block';
+            btnToggle.style.display = 'inline-block';
+          }
+        } catch (err) {
+          console.error('[FastCAD 3D] erreur loadGeometry:', err);
+          loading.style.display = 'none';
+          canvas.style.display  = 'none';
+          let msg = panel.querySelector('.viewport-no-preview');
+          if (!msg) {
+            msg = document.createElement('p');
+            msg.className = 'viewport-no-preview';
+            msg.style.cssText = 'text-align:center;padding:2rem;font-size:0.75rem;letter-spacing:2px;color:rgba(255,255,255,0.25);text-transform:uppercase;';
+            panel.querySelector('.viewport-header').insertAdjacentElement('afterend', msg);
+          }
+          msg.textContent = 'Aperçu 3D non disponible';
+          msg.style.display = 'block';
+          btnToggle.style.display = 'inline-block';
+        }
+      }
+
+      /* ── 3D TOGGLE & CLOSE ─────────────────────────────────────────── */
+      $('btn-toggle-3d').addEventListener('click', () => {
+        const panel = $('viewport-panel');
+        const visible = panel.style.display !== 'none';
+        panel.style.display = visible ? 'none' : 'block';
+        $('btn-toggle-3d').textContent = visible ? 'APERÇU 3D' : 'MASQUER 3D';
+      });
+
+      $('btn-viewport-close').addEventListener('click', () => {
+        $('viewport-panel').style.display = 'none';
+        $('btn-toggle-3d').textContent = 'APERÇU 3D';
+      });
 
       /* ── GENERATE ──────────────────────────────────────────────────── */
       elBtnGenerate.addEventListener('click', async () => {
@@ -990,6 +1596,8 @@
           return;
         }
 
+        const isLong = query.length > 400;
+        $('spinner-label').textContent = isLong ? 'Génération longue — patientez...' : 'Génération...';
         showSpinner();
         elBtnGenerate.disabled = true;
 
@@ -1018,6 +1626,7 @@
           if (!response.ok) {
             let detail = '';
             try { const err = await response.json(); detail = err.detail || err.message || ''; } catch (_) {}
+            if (response.status === 429) throw new Error('Limite atteinte — ' + (detail || 'quota journalier épuisé. Changez de modèle dans ⚙ Paramètres.'));
             throw new Error('HTTP ' + response.status + (detail ? ' — ' + detail : ''));
           }
 
@@ -1027,13 +1636,216 @@
         } catch (err) {
           clearTimeout(timeoutId);
           if (err.name === 'AbortError') {
-            showError('Timeout — aucune réponse du serveur après 30 secondes.');
+            showError('Timeout — aucune réponse du serveur après 120 secondes. Les opérations complexes peuvent nécessiter un modèle plus rapide (ex : Haiku, Gemma).');
           } else {
             showError(err.message || 'Erreur réseau inconnue.');
           }
         } finally {
           updateGenerateButton();
         }
+      });
+
+      /* ── F-1 : DIMENSION EXTRACTOR ────────────────────────────────── */
+      function extractDimensions(script) {
+        const results = [];
+        const seen    = new Set();
+        const lines   = script.split('\n');
+
+        lines.forEach((raw, idx) => {
+          const line = raw.trim();
+          if (!line || /^\s*'/.test(line) || /^\s*\/\//.test(line)) return;
+
+          // .PropName.Value = NUMBER  (e.g. oPad.FirstLimit.Dimension.Value = 20.0)
+          let m;
+          const reValue = /(\w+)\.Value\s*=\s*([\d]+(?:\.[\d]+)?)/g;
+          while ((m = reValue.exec(line)) !== null) {
+            const key = m[1] + '=' + m[2];
+            if (!seen.has(key)) { seen.add(key); results.push({ param: m[1], value: m[2], unit: 'mm', line: idx + 1 }); }
+          }
+
+          // EKL: let Name(Type) = NUMBERmm  or  Name = NUMBERmm
+          const reEkl = /\blet\s+(\w+)\s*\([^)]*\)\s*=\s*([\d.]+)\s*(mm|°|deg)?/i;
+          if ((m = reEkl.exec(line))) {
+            const key = m[1] + '=' + m[2];
+            if (!seen.has(key)) { seen.add(key); results.push({ param: m[1], value: m[2], unit: m[3] || 'mm', line: idx + 1 }); }
+          }
+
+          // SetXxx(NUMBER) — EHI / EKL calls
+          const reSet = /\bSet(\w+)\(\s*([\d]+(?:\.[\d]+)?)\s*\)/g;
+          while ((m = reSet.exec(line)) !== null) {
+            const key = m[1] + '=' + m[2];
+            if (!seen.has(key)) { seen.add(key); results.push({ param: m[1], value: m[2], unit: 'mm', line: idx + 1 }); }
+          }
+
+          // AddNewPad / AddNewPocket / AddNewHole last numeric arg
+          const reAdd = /\bAddNew\w+\([^)]*,\s*([\d]+(?:\.[\d]+)?)\s*\)/;
+          if ((m = reAdd.exec(line))) {
+            const feature = (line.match(/AddNew(\w+)/) || ['','Feature'])[1];
+            const key = feature + '=' + m[1];
+            if (!seen.has(key)) { seen.add(key); results.push({ param: feature + '.depth', value: m[1], unit: 'mm', line: idx + 1 }); }
+          }
+        });
+
+        return results.slice(0, 30);
+      }
+
+      function renderDims(script) {
+        const panel  = $('dims-panel');
+        const tbody  = $('dims-tbody');
+        const countEl= $('dims-count');
+        if (!script) { panel.style.display = 'none'; return; }
+        const dims = extractDimensions(script);
+        if (dims.length === 0) { panel.style.display = 'none'; return; }
+
+        tbody.innerHTML = '';
+        dims.forEach(d => {
+          const tr = document.createElement('tr');
+          tr.innerHTML = `<td>${d.param}</td><td>${d.value} ${d.unit}</td><td>${d.line}</td>`;
+          tbody.appendChild(tr);
+        });
+        countEl.textContent = dims.length + ' cote' + (dims.length > 1 ? 's' : '');
+        panel.style.display = 'block';
+      }
+
+      $('dims-toggle').addEventListener('click', () => {
+        const body  = $('dims-body');
+        const arrow = $('dims-arrow');
+        const open  = body.classList.toggle('open');
+        arrow.classList.toggle('open', open);
+        $('dims-toggle').setAttribute('aria-expanded', String(open));
+      });
+      $('dims-toggle').addEventListener('keydown', e => {
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); $('dims-toggle').click(); }
+      });
+
+      /* ── F-2 : BIBLIOTHÈQUE ────────────────────────────────────────── */
+      let library = [];
+
+      function loadLibrary() {
+        try { library = JSON.parse(localStorage.getItem(LS_LIBRARY) || '[]'); }
+        catch (_) { library = []; }
+      }
+
+      function persistLibrary() {
+        localStorage.setItem(LS_LIBRARY, JSON.stringify(library));
+      }
+
+      function saveEntry(name) {
+        const entry = {
+          id:     Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+          name:   name.trim() || 'Script sans nom',
+          type:   state.scriptType,
+          query:  elQueryInput.value.trim(),
+          script: state.script || '',
+          date:   new Date().toISOString().slice(0, 10),
+        };
+        library.unshift(entry);
+        if (library.length > 100) library = library.slice(0, 100);
+        persistLibrary();
+        return entry;
+      }
+
+      function deleteEntry(id) {
+        library = library.filter(e => e.id !== id);
+        persistLibrary();
+        renderLibrary(elLibSearch.value);
+      }
+
+      function loadEntry(entry) {
+        elQueryInput.value = entry.query || '';
+        state.script       = entry.script;
+        state.scriptType   = entry.type || 'catscript';
+        elScriptTextarea.value = entry.script || '';
+
+        // sync pills
+        document.querySelectorAll('#script-type-group .script-pill').forEach(p => {
+          const match = p.dataset.value === state.scriptType;
+          p.classList.toggle('selected', match);
+          p.setAttribute('aria-checked', String(match));
+        });
+
+        // show result panel
+        elOutputEmpty.style.display = 'none';
+        elSpinner.classList.remove('visible');
+        elErrorBanner.classList.remove('visible');
+        elOutputResult.classList.add('visible');
+        elResultTypeLabel.textContent = { catscript:'CATScript / VBA', ekl:'EKL', ehi_eha:'EHI / EHA' }[state.scriptType] || 'Script';
+        elConfidenceBadge.textContent = 'Bibliothèque';
+        elConfidenceBadge.title       = 'Script chargé depuis la bibliothèque locale.';
+        elConfidenceBadge.className   = 'badge badge-MEDIUM';
+        elBtnSave.disabled = false;
+        renderDims(state.script);
+        $('viewport-panel').style.display = 'none';
+        $('btn-toggle-3d').style.display  = 'none';
+
+        elModalLibrary.classList.remove('open');
+      }
+
+      function renderLibrary(filter) {
+        const q  = (filter || '').toLowerCase();
+        const items = library.filter(e =>
+          !q || e.name.toLowerCase().includes(q) || e.type.includes(q) || (e.query || '').toLowerCase().includes(q)
+        );
+        elLibList.innerHTML = '';
+        if (items.length === 0) {
+          const empty = document.createElement('div');
+          empty.className = 'lib-empty';
+          empty.textContent = library.length === 0 ? 'Aucun script sauvegardé' : 'Aucun résultat';
+          elLibList.appendChild(empty);
+          return;
+        }
+        items.forEach(entry => {
+          const card = document.createElement('div');
+          card.className = 'lib-card';
+          card.innerHTML = `
+            <div class="lib-card-body">
+              <div class="lib-card-name">${entry.name}</div>
+              <div class="lib-card-meta">
+                <span class="lib-card-type">${entry.type}</span>
+                <span>${entry.date}</span>
+              </div>
+            </div>
+            <div class="lib-card-actions">
+              <button class="lib-btn lib-btn-load" data-id="${entry.id}">Charger</button>
+              <button class="lib-btn lib-btn-del"  data-id="${entry.id}">✕</button>
+            </div>`;
+          card.querySelector('.lib-btn-load').addEventListener('click', () => loadEntry(entry));
+          card.querySelector('.lib-btn-del').addEventListener('click',  () => deleteEntry(entry.id));
+          elLibList.appendChild(card);
+        });
+      }
+
+      /* Library modal open / close */
+      elBtnLibrary.addEventListener('click', () => {
+        renderLibrary('');
+        elLibSearch.value = '';
+        elModalLibrary.classList.add('open');
+        elLibSearch.focus();
+      });
+      elBtnLibraryClose.addEventListener('click', () => elModalLibrary.classList.remove('open'));
+      elModalLibrary.addEventListener('click', e => { if (e.target === elModalLibrary) elModalLibrary.classList.remove('open'); });
+      elLibSearch.addEventListener('input', () => renderLibrary(elLibSearch.value));
+
+      /* Save flow */
+      elBtnSave.addEventListener('click', () => {
+        if (!state.script) return;
+        elSaveNameInput.value = elQueryInput.value.slice(0, 60);
+        elModalSave.classList.add('open');
+        setTimeout(() => { elSaveNameInput.focus(); elSaveNameInput.select(); }, 50);
+      });
+      elBtnSaveClose.addEventListener('click', () => elModalSave.classList.remove('open'));
+      elModalSave.addEventListener('click', e => { if (e.target === elModalSave) elModalSave.classList.remove('open'); });
+      elBtnSaveConfirm.addEventListener('click', () => {
+        const name = elSaveNameInput.value.trim();
+        if (!name) { elSaveNameInput.focus(); return; }
+        saveEntry(name);
+        elModalSave.classList.remove('open');
+        const prev = elBtnSave.textContent;
+        elBtnSave.textContent = 'Sauvegardé !';
+        setTimeout(() => { elBtnSave.textContent = prev; }, 1800);
+      });
+      elSaveNameInput.addEventListener('keydown', e => {
+        if (e.key === 'Enter') elBtnSaveConfirm.click();
       });
 
       /* ── EXPORT ────────────────────────────────────────────────────── */
@@ -1080,12 +1892,111 @@
         if (e.key === 'Escape') {
           closeSettings();
           elModalNotice.classList.remove('open');
+          elModalLibrary.classList.remove('open');
+          elModalSave.classList.remove('open');
         }
+      });
+
+      /* ── PDF INGESTION ─────────────────────────────────────────────── */
+      const elUploadZone  = document.getElementById('upload-zone');
+      const elPdfInput    = document.getElementById('pdf-input');
+      const elIngestStatus = document.getElementById('ingest-status');
+      const elDocList     = document.getElementById('doc-list');
+
+      let ingestedDocs = JSON.parse(localStorage.getItem(LS_DOCS) || '[]');
+
+      function renderDocList() {
+        elDocList.innerHTML = '';
+        ingestedDocs.forEach(doc => {
+          const chip = document.createElement('div');
+          chip.className = 'doc-chip';
+          chip.innerHTML = `<span>${doc.filename}</span><span class="doc-chip-count">${doc.chunks_added} chunks</span>`;
+          elDocList.appendChild(chip);
+        });
+      }
+
+      async function ingestFile(file) {
+        elIngestStatus.textContent = `Ingestion de ${file.name}…`;
+        elIngestStatus.className = '';
+
+        const formData = new FormData();
+        formData.append('file', file);
+
+        try {
+          const res = await fetch(INGEST_URL, { method: 'POST', body: formData });
+          if (!res.ok) {
+            const err = await res.json().catch(() => ({ detail: res.statusText }));
+            throw new Error(err.detail || res.statusText);
+          }
+          const data = await res.json();
+          const entry = { filename: data.filename, chunks_total: data.chunks_total, chunks_added: data.chunks_added };
+          ingestedDocs = ingestedDocs.filter(d => d.filename !== data.filename);
+          ingestedDocs.unshift(entry);
+          localStorage.setItem(LS_DOCS, JSON.stringify(ingestedDocs));
+          renderDocList();
+          elIngestStatus.textContent = `OK  ${data.filename} — ${data.chunks_added} chunks ajoutés (${data.chunks_total} total)`;
+          elIngestStatus.className = 'ok';
+        } catch (e) {
+          elIngestStatus.textContent = `ERROR  ${e.message}`;
+          elIngestStatus.className = 'err';
+        }
+      }
+
+      elPdfInput.addEventListener('change', () => {
+        if (elPdfInput.files[0]) ingestFile(elPdfInput.files[0]);
+      });
+
+      elUploadZone.addEventListener('dragover', e => { e.preventDefault(); elUploadZone.classList.add('drag-over'); });
+      elUploadZone.addEventListener('dragleave', () => elUploadZone.classList.remove('drag-over'));
+      elUploadZone.addEventListener('drop', e => {
+        e.preventDefault();
+        elUploadZone.classList.remove('drag-over');
+        const file = e.dataTransfer.files[0];
+        if (file) ingestFile(file);
+      });
+
+      renderDocList();
+
+      /* ── SCRIPT TYPE AUTO-DETECTION ────────────────────────────────── */
+      const SCRIPT_RULES = [
+        {
+          type: 'ehi_eha',
+          label: 'EHI / EHA',
+          keywords: ['ehi','eha','harnais','harness','câble','cable','connecteur','routage','routing','electrical','harness routing','bundle','backshell'],
+        },
+        {
+          type: 'ekl',
+          label: 'EKL',
+          keywords: ['ekl','knowledge advisor','règle','formule','relation','loi de','paramètre','knowledge','design table','design rule','check','reaction'],
+        },
+      ];
+
+      function detectScriptType(text) {
+        const lower = text.toLowerCase();
+        for (const rule of SCRIPT_RULES) {
+          if (rule.keywords.some(kw => lower.includes(kw))) return rule.type;
+        }
+        return 'catscript';
+      }
+
+      function applyDetectedType(type) {
+        document.querySelectorAll('#script-type-group .script-pill').forEach(p => {
+          const match = p.dataset.value === type;
+          p.classList.toggle('selected', match);
+          p.setAttribute('aria-checked', String(match));
+        });
+        state.scriptType = type;
+      }
+
+      document.getElementById('query-input').addEventListener('input', function () {
+        const detected = detectScriptType(this.value);
+        applyDetectedType(detected);
       });
 
       /* ── INIT ──────────────────────────────────────────────────────── */
       loadSettings();
       applySettingsToUI();
+      loadLibrary();
       showEmpty();
       checkDataNotice();
 

@@ -1,8 +1,8 @@
 # tasks/todo.md — CATScript-AI PoC
 
-**Phase active :** Phase 1 — PoC
-**Dernière mise à jour :** 2026-06-05
-**Statut :** Phase 1 — PoC complété ✅
+**Phase active :** Phase 2 — Fonctionnalités avancées
+**Dernière mise à jour :** 2026-06-06
+**Statut :** Phase 1 complétée ✅ · Phase 2 en cours
 
 ---
 
@@ -164,6 +164,50 @@
 
 ---
 
+---
+
+## BLOC 6 — Fonctionnalités Avancées (Phase 2)
+
+- [x] **T-601** — Corriger le 3D preview pour les harnais
+  - Investiguer pourquoi le rendu `type: "harness"` ne s'affiche pas dans `frontend/index.html`
+  - Vérifier le parsing JSON segments (`from`/`to`/`r`) et la création des `TubeGeometry` Three.js
+  - Tester avec UC-16 (harnais linéaire) et UC-17 (harnais en Y) depuis `use_case_catalog.md`
+  - Ajouter fallback visuel si geometry null (message explicite, pas un écran blanc)
+  - **Agent :** UI/UX + Auditeur
+  - **Réf :** `backend/prompt_builder.py::build_geometry_prompt`, `frontend/index.html` section Three.js
+
+- [ ] **T-602** — Rétro-ingénierie de modèle CAD → script reproductible
+  - Nouveau endpoint `POST /reverse-engineer` — accept `UploadFile` (`.CATPart`, `.CATProduct`, `.step`, `.stp`)
+  - Parser les features géométriques du fichier : `pythonocc-core` (STEP/IGES) ou extraction XML CATPart
+  - Construire un prompt de rétro-ingénierie dans `prompt_builder.py` : décrire les solides détectés → demander au LLM de générer le CATScript reproductible
+  - Enrichir `Docs/glossaire.md` : ajouter section "Formats d'entrée — rétro-ingénierie" (CATPart, CATProduct, STEP, IGES)
+  - Enrichir `Docs/use_case_catalog.md` : ajouter UC-21 (rétro-ingénierie CATPart simple) et UC-22 (rétro-ingénierie CATProduct assemblage)
+  - UI : bouton "Importer un modèle" dans le panneau gauche, résultat affiché dans la zone script
+  - **Agent :** Architecte (nouveau endpoint + parseur) + UI/UX (bouton import)
+  - **Réf :** Specification.md — capacités d'analyse de l'existant
+
+- [ ] **T-603** — Passage de harnais depuis un fichier DMU d'environnement
+  - Nouveau endpoint `POST /harness-routing` — accept un fichier `.CATProduct` ou `.step` représentant l'environnement 3D
+  - Extraire les surfaces, volumes et contraintes de passage (zones interdites, zones de passage) via `pythonocc-core`
+  - Générer un prompt EHI/EHA qui décrit l'environnement et demande le script de routage avec points de passage 3D réels
+  - Enrichir `Docs/glossaire.md` : ajouter "DMU (Digital Mock-Up)", "CATProduct d'environnement", "point de passage 3D"
+  - Enrichir `Docs/use_case_catalog.md` : ajouter UC-23 (routage harnais sur DMU environnement)
+  - UI : champ upload secondaire "Environnement DMU" visible uniquement quand `script_type = EHI/EHA`
+  - **Agent :** Architecte + UI/UX
+  - **Réf :** F-04 (ingestion), §7.3 — à étendre pour formats CAD natifs
+
+- [ ] **T-604** — Mise en plan automatique d'un modèle chargé
+  - Nouveau endpoint `POST /drawing` — accept un fichier `.CATPart` ou `.CATProduct`
+  - Analyser les faces et volumes principaux (via STEP ou pythonocc) pour déterminer les vues pertinentes (dessus, face, profil, isométrique)
+  - Générer un script CATScript `CATDrawing` : création du dessin, placement des vues projetées, cotation automatique des dimensions principales
+  - Enrichir `Docs/glossaire.md` : ajouter section "Mise en plan — CATDrawing" (vues projetées, cartouche, normes ISO)
+  - Enrichir `Docs/use_case_catalog.md` : ajouter UC-24 (mise en plan simple CATPart) et UC-25 (mise en plan CATProduct assemblage)
+  - UI : bouton "Générer la mise en plan" dans le panneau options, output = script CATDrawing téléchargeable en `.CATScript`
+  - **Agent :** Architecte + UI/UX + Auditeur
+  - **Réf :** F-25 (export script), types de sortie à étendre
+
+---
+
 ## Ordre d'Exécution Recommandé
 
 ```
@@ -172,4 +216,5 @@ T-001 → T-002 → T-501 → T-502
 → T-201 → T-202 → T-203 → T-204 → T-205 → T-206
 → T-301 → T-302 → T-303 → T-304 → T-305 → T-306
 → T-401 → T-402 → T-403 → T-404
+→ T-601 → T-602 → T-603 → T-604
 ```

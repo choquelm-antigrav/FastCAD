@@ -1,23 +1,33 @@
-"""Provider-agnostic LLM router (T-202)"""
+"""Provider-agnostic LLM router"""
 
 from __future__ import annotations
 
+_OPENROUTER_BASE = "https://openrouter.ai/api/v1"
+
+# Providers with OpenAI-compatible APIs — same code path, different base_url
+_COMPAT_BASES: dict[str, str] = {
+    "openrouter": "https://openrouter.ai/api/v1",
+    "deepseek":   "https://api.deepseek.com/v1",
+    "kimi":       "https://api.moonshot.cn/v1",
+    "nemotron":   "https://integrate.api.nvidia.com/v1",
+}
+
+
+def _openai_compat(base_url: str, api_key: str, model: str, prompt: str) -> str:
+    from openai import OpenAI
+    client = OpenAI(api_key=api_key, base_url=base_url)
+    return (
+        client.chat.completions.create(
+            model=model,
+            messages=[{"role": "user", "content": prompt}],
+            max_tokens=4096,
+        )
+        .choices[0]
+        .message.content
+    )
+
 
 def call_llm(provider: str, model: str, api_key: str, prompt: str) -> str:
-    """
-    Route a prompt to the requested LLM provider and return the response text.
-
-    Parameters
-    ----------
-    provider : one of 'anthropic', 'google', 'openai', 'ollama'
-    model    : model name/ID as specified by the user
-    api_key  : API key (ignored for ollama)
-    prompt   : full prompt to send
-
-    Raises
-    ------
-    ValueError  if provider is not supported
-    """
     if provider == "anthropic":
         import anthropic
         client = anthropic.Anthropic(api_key=api_key)
@@ -28,22 +38,11 @@ def call_llm(provider: str, model: str, api_key: str, prompt: str) -> str:
         )
         return response.content[0].text
 
-    if provider == "google":
-        import google.generativeai as genai
-        genai.configure(api_key=api_key)
-        return genai.GenerativeModel(model).generate_content(prompt).text
+    if provider in _COMPAT_BASES:
+        return _openai_compat(_COMPAT_BASES[provider], api_key, model, prompt)
 
     if provider == "openai":
-        from openai import OpenAI
-        client = OpenAI(api_key=api_key)
-        return (
-            client.chat.completions.create(
-                model=model,
-                messages=[{"role": "user", "content": prompt}],
-            )
-            .choices[0]
-            .message.content
-        )
+        return _openai_compat("https://api.openai.com/v1", api_key, model, prompt)
 
     if provider == "ollama":
         import ollama as _ollama

@@ -49,12 +49,15 @@ def retrieve(
         results["metadatas"][0],
         results["distances"][0],
     ):
+        # all-MiniLM-L6-v2 produces unit vectors; ChromaDB returns L2 distance.
+        # cosine_similarity = 1 - L2² / 2  (exact for normalized embeddings)
+        cosine_sim = max(0.0, 1.0 - (dist ** 2) / 2.0)
         chunks.append(
             {
                 "content": doc,
                 "source_file": meta["source_file"],
                 "page_number": meta["page_number"],
-                "score": round(1.0 - dist, 4),
+                "score": round(cosine_sim, 4),
             }
         )
 
