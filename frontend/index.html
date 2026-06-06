@@ -973,6 +973,15 @@
       background: rgba(255,50,50,0.08); border: 1px solid rgba(255,50,50,0.2); color: #ff5555;
     }
     .lib-btn-del:hover { background: rgba(255,50,50,0.18); }
+    .lib-card-preset {
+      border-color: rgba(255,95,0,0.25);
+      background: rgba(255,95,0,0.04);
+    }
+    .lib-card-preset:hover { border-color: rgba(255,95,0,0.45); }
+    .lib-card-preset-badge {
+      color: var(--color-magma); letter-spacing: 3px; font-size: 0.6rem;
+      border: 1px solid rgba(255,95,0,0.35); padding: 0.1rem 0.35rem; border-radius: 2px;
+    }
     #modal-save .modal { width: 440px; }
 
     /* ── DATA NOTICE MODAL ─────────────────────────────────────────────── */
@@ -1286,6 +1295,27 @@
       const LS_DOCS       = 'catscript_docs';
       const LS_LIBRARY    = 'fastcad_library';
       const PROVIDERS     = ['anthropic', 'openrouter', 'openai', 'ollama'];
+
+      const PRESET_ENTRIES = [
+        {
+          id:     '__preset_integ01',
+          preset: true,
+          name:   'Cas test méca',
+          type:   'catscript',
+          date:   '—',
+          script: '',
+          query:  `Je veux créer le corps d'une pompe centrifuge en aluminium.\n\nVolute (carter principal)\nLe corps est un cylindre évidé de 180 mm de diamètre extérieur et 160 mm de hauteur, avec des parois de 6 mm d'épaisseur, ouvert sur le dessus. L'alésage central de 80 mm de diamètre traverse toute la hauteur pour le passage de l'arbre.\n\nFlasque de fermeture\nSur la face supérieure, ajouter un flasque annulaire plat de 180 mm de diamètre extérieur, 120 mm de diamètre intérieur et 12 mm d'épaisseur. Répartir 8 trous de boulonnage Ø9 mm à 45° les uns des autres sur un cercle de perçage de 155 mm de diamètre.\n\nTubulure d'aspiration\nSur le flanc gauche du corps, une tubulure cylindrique de 60 mm de diamètre extérieur, 44 mm d'alésage intérieur, 80 mm de longueur, avec une bride carrée 100 × 100 mm en bout. La bride porte 4 trous de fixation Ø11 mm aux coins à 15 mm des bords.\n\nTubulure de refoulement\nIdentique à la tubulure d'aspiration mais orientée vers le haut à 90°, avec une bride ronde de 90 mm de diamètre portant 4 trous de Ø11 mm répartis en croix.\n\nNervures de renfort\n4 nervures trapézoïdales de 8 mm d'épaisseur et 30 mm de hauteur, disposées en croix sur la face extérieure du cylindre.\n\nFixations au bâti\n4 pattes de fixation de 50 × 40 mm, épaisseur 10 mm, positionnées à 90° autour de la base. Trou de fixation Ø13 mm et taraudage M8 profondeur 20 mm par patte. Chanfreins 1,5 × 45° sur les arêtes supérieures.\n\nJoint et étanchéité\nGorge annulaire de 4 mm de largeur et 3 mm de profondeur sur la face de portée du flasque supérieur pour joint plat.\n\nParamètres\nPiloter les cotes principales par des paramètres nommés (diamètre corps, hauteur, épaisseur paroi, alésage arbre).`,
+        },
+        {
+          id:     '__preset_integ02',
+          preset: true,
+          name:   'Cas test harnais',
+          type:   'ehi_eha',
+          date:   '—',
+          script: '',
+          query:  `Je veux créer le harnais de câblage complet d'une baie avionique reliant IRS, FMS, PFD gauche, PFD droit et DAR.\n\nTronc principal\nTronc central de 600 mm de longueur et 25 mm de diamètre, blindé (tresse métallique), partant du pupitre de distribution (0, 0, 0). Trois clips P25 à 150 mm, 350 mm et 550 mm depuis le départ.\n\nNœud de distribution principal en étoile à 5 branches.\n\nBranche IRS — 350 mm, Ø16 mm, blindée. Connecteur D38999/26WJ55SN 55 broches mâle. Fils : 4×28VDC AWG20 rouge, 2×GND AWG20 noir, 6 paires ARINC429 AWG24 bleu.\n\nBranche FMS — 400 mm, Ø16 mm, blindée. Connecteur D38999/26WB35SN 37 broches. Fils : 2×28VDC AWG20, 1×GND AWG20, 4 paires ARINC429, 2 paires RS-422 AWG24 vert.\n\nBranche PFD gauche — 280 mm, Ø12 mm, gaine thermorétractable. Connecteur DSUB-25M-HD. Fils : 2×28VDC AWG22, 1×GND AWG22, 3 paires vidéo ARINC818 AWG24 jaune.\n\nBranche PFD droit — 280 mm, Ø12 mm, identique PFD gauche par symétrie.\n\nBranche DAR — 500 mm, Ø10 mm, conduit ondulé. Connecteur MIL-C-26482-19-35 19 broches. Fils : 1×28VDC AWG22, 1×GND AWG22, 2 paires ARINC717 AWG24 orange, 1 discret AWG24 gris.\n\nSous-bifurcation IRS à 200 mm depuis le nœud — 120 mm, Ø6 mm, conduit ondulé. Fils : 5VDC AWG28 rouge, signal 0-5V AWG28 blanc.\n\nContraintes : rayon de courbure min 5× diamètre, espacement supports max 400 mm, numéros câbles format WH-IRS-001 / WH-FMS-001 / WH-PFD-L-001 / WH-PFD-R-001 / WH-DAR-001.`,
+        },
+      ];
 
       /* ── STATE ─────────────────────────────────────────────────────── */
       let state = {
@@ -1783,34 +1813,50 @@
 
       function renderLibrary(filter) {
         const q  = (filter || '').toLowerCase();
-        const items = library.filter(e =>
+        const presets = PRESET_ENTRIES.filter(e =>
+          !q || e.name.toLowerCase().includes(q) || e.type.includes(q)
+        );
+        const userItems = library.filter(e =>
           !q || e.name.toLowerCase().includes(q) || e.type.includes(q) || (e.query || '').toLowerCase().includes(q)
         );
         elLibList.innerHTML = '';
-        if (items.length === 0) {
+
+        if (presets.length === 0 && userItems.length === 0) {
           const empty = document.createElement('div');
           empty.className = 'lib-empty';
           empty.textContent = library.length === 0 ? 'Aucun script sauvegardé' : 'Aucun résultat';
           elLibList.appendChild(empty);
           return;
         }
-        items.forEach(entry => {
+
+        [...presets, ...userItems].forEach(entry => {
           const card = document.createElement('div');
-          card.className = 'lib-card';
-          card.innerHTML = `
-            <div class="lib-card-body">
-              <div class="lib-card-name">${entry.name}</div>
-              <div class="lib-card-meta">
-                <span class="lib-card-type">${entry.type}</span>
-                <span>${entry.date}</span>
+          card.className = 'lib-card' + (entry.preset ? ' lib-card-preset' : '');
+          card.innerHTML = entry.preset
+            ? `<div class="lib-card-body">
+                <div class="lib-card-name">${entry.name}</div>
+                <div class="lib-card-meta">
+                  <span class="lib-card-type">${entry.type}</span>
+                  <span class="lib-card-preset-badge">EXEMPLE</span>
+                </div>
               </div>
-            </div>
-            <div class="lib-card-actions">
-              <button class="lib-btn lib-btn-load" data-id="${entry.id}">Charger</button>
-              <button class="lib-btn lib-btn-del"  data-id="${entry.id}">✕</button>
-            </div>`;
+              <div class="lib-card-actions">
+                <button class="lib-btn lib-btn-load">Charger</button>
+              </div>`
+            : `<div class="lib-card-body">
+                <div class="lib-card-name">${entry.name}</div>
+                <div class="lib-card-meta">
+                  <span class="lib-card-type">${entry.type}</span>
+                  <span>${entry.date}</span>
+                </div>
+              </div>
+              <div class="lib-card-actions">
+                <button class="lib-btn lib-btn-load" data-id="${entry.id}">Charger</button>
+                <button class="lib-btn lib-btn-del"  data-id="${entry.id}">✕</button>
+              </div>`;
           card.querySelector('.lib-btn-load').addEventListener('click', () => loadEntry(entry));
-          card.querySelector('.lib-btn-del').addEventListener('click',  () => deleteEntry(entry.id));
+          if (!entry.preset)
+            card.querySelector('.lib-btn-del').addEventListener('click', () => deleteEntry(entry.id));
           elLibList.appendChild(card);
         });
       }
