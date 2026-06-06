@@ -111,7 +111,7 @@
             const dir = B.clone().sub(A).normalize();
             const m   = new THREE.Mesh(
               new THREE.CylinderGeometry(r, r, len, 12),
-              mat(PALETTE[seg.color] ?? PALETTE.main, false)
+              mat(PALETTE[seg.color] ?? PALETTE.main)
             );
             m.position.copy(mid);
             const yAxis = new THREE.Vector3(0, 1, 0);
@@ -1890,6 +1890,91 @@
         loadGeometry(elQueryInput.value.trim(), state.scriptType, data.script || '');
       }
 
+      /* ── EHI/EHA CLIENT-SIDE GEOMETRY PARSER ──────────────────────── */
+      function parseHarnessFromScript(script) {
+        let m;
+
+        // 1. Build variable → [x,y,z] map from: Set oPointX = *.AddNewPointCoord(x,y,z)
+        const pointMap = new Map();
+        const setRe = /Set\s+(\w+)\s*=\s*\S+\.AddNewPointCoord\s*\(\s*([-\d.]+)\s*,\s*([-\d.]+)\s*,\s*([-\d.]+)\s*\)/gi;
+        while ((m = setRe.exec(script)) !== null)
+          pointMap.set(m[1], [parseFloat(m[2]), parseFloat(m[3]), parseFloat(m[4])]);
+
+        // 2. Per-segment diameter
+        const segDias = new Map();
+        const diaRe = /(\w+)\.SetDiameter\s*\(\s*([\d.]+)\s*\)/gi;
+        while ((m = diaRe.exec(script)) !== null)
+          segDias.set(m[1], parseFloat(m[2]) / 2);
+        const globalDia = script.match(/SetDiameter\s*\(\s*([\d.]+)\s*\)/i);
+        const defaultR  = globalDia ? parseFloat(globalDia[1]) / 2 : 6;
+
+        // 3. Find segment variable names
+        const segCreationRe = /Set\s+(\w+)\s*=.*(?:AddBundleSegment|ElecBundleSegment|BundleSegment)/gi;
+        const segVars = [];
+        while ((m = segCreationRe.exec(script)) !== null) segVars.push(m[1]);
+
+        const segments = [];
+
+        if (segVars.length > 0 && pointMap.size >= 2) {
+          // Structured path: follow AddRoutingPoint order per segment
+          segVars.forEach((sv, idx) => {
+            const color = idx === 0 ? 'main' : 'branch';
+            const r = segDias.get(sv) || defaultR;
+
+            // Handle both: sv.AddRoutingPoint(oVar)  and  sv.AddRoutingPoint oVar
+            const routeRe = new RegExp(
+              `${sv}\\.AddRoutingPoint\\s*\\(?\\s*(\\w+)\\s*\\)?`, 'gi'
+            );
+            const pts = [];
+            while ((m = routeRe.exec(script)) !== null) {
+              const pt = pointMap.get(m[1]);
+              if (pt) pts.push(pt);
+            }
+            for (let i = 0; i < pts.length - 1; i++)
+              segments.push({ id: `${sv}_${i}`, from: pts[i], to: pts[i + 1], r, color });
+          });
+        }
+
+        // 4. Fallback A: follow global AddRoutingPoint call order (respects routing sequence)
+        if (segments.length === 0 && pointMap.size >= 2) {
+          const allRouteRe = /\.AddRoutingPoint\s*\(?\s*(\w+)\s*\)?/gi;
+          const ordered = [];
+          while ((m = allRouteRe.exec(script)) !== null) {
+            const pt = pointMap.get(m[1]);
+            if (pt) ordered.push(pt);
+          }
+          const dedup = ordered.filter((p, i) => {
+            if (i === 0) return true;
+            const q = ordered[i - 1];
+            return Math.abs(p[0]-q[0]) + Math.abs(p[1]-q[1]) + Math.abs(p[2]-q[2]) > 0.001;
+          });
+          for (let i = 0; i < dedup.length - 1; i++)
+            segments.push({ id: `seg${i}`, from: dedup[i], to: dedup[i+1], r: defaultR, color: 'main' });
+        }
+
+        // 5. Fallback B: inline AddRoutingPoint(*.AddNewPointCoord(x,y,z))
+        if (segments.length === 0) {
+          const inlineRe = /(\w+)\.AddRoutingPoint\s*\(\s*\S+\.AddNewPointCoord\s*\(\s*([-\d.]+)\s*,\s*([-\d.]+)\s*,\s*([-\d.]+)\s*\)\s*\)/gi;
+          const bySegInline = new Map();
+          let idx2 = 0;
+          while ((m = inlineRe.exec(script)) !== null) {
+            const sv = m[1];
+            if (!bySegInline.has(sv)) bySegInline.set(sv, []);
+            bySegInline.get(sv).push([parseFloat(m[2]), parseFloat(m[3]), parseFloat(m[4])]);
+          }
+          let sIdx = 0;
+          for (const [sv, pts] of bySegInline) {
+            const color = sIdx === 0 ? 'main' : 'branch';
+            const r = segDias.get(sv) || defaultR;
+            for (let i = 0; i < pts.length - 1; i++)
+              segments.push({ id: `${sv}_${i}`, from: pts[i], to: pts[i+1], r, color });
+            sIdx++;
+          }
+        }
+
+        return segments.length > 0 ? { name: 'Harness', type: 'harness', segments } : null;
+      }
+
       /* ── 3D GEOMETRY LOADER ────────────────────────────────────────── */
       async function loadGeometry(query, scriptType, script = '') {
         const panel   = $('viewport-panel');
@@ -1901,6 +1986,23 @@
         panel.style.display   = 'block';
         loading.style.display = 'flex';
         canvas.style.display  = 'none';
+
+        // For EHI/EHA: try fast client-side parsing before calling the LLM
+        const isHarnessScript = script.trim() && scriptType &&
+          (scriptType.includes('ehi') || scriptType.includes('eha'));
+        if (isHarnessScript) {
+          const geo = parseHarnessFromScript(script);
+          if (geo && geo.segments && geo.segments.length > 0) {
+            console.log('[FastCAD 3D] harness parsé client-side —', geo.segments.length, 'segments');
+            nameEl.textContent    = geo.name || 'Harness';
+            loading.style.display = 'none';
+            canvas.style.display  = 'block';
+            window.render3D(canvas, geo);
+            btnToggle.style.display = 'inline-block';
+            return;
+          }
+          console.log('[FastCAD 3D] parsing client échoué — fallback LLM geometry');
+        }
 
         try {
           const res = await fetch(GEOMETRY_URL, {
