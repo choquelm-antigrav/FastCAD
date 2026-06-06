@@ -918,70 +918,75 @@
     #btn-save:hover:not(:disabled) { border-color: var(--color-magma); color: var(--color-magma); }
     #btn-save:disabled { opacity: 0.25; cursor: not-allowed; }
     #modal-library .modal {
-      width: 660px; max-height: 80vh; display: flex; flex-direction: column; padding: 0;
+      width: 700px; max-height: 88vh; display: flex; flex-direction: column; padding: 0;
     }
     .lib-modal-header {
       display: flex; align-items: center; justify-content: space-between;
-      padding: 1.5rem 2rem; border-bottom: 1px solid var(--color-glass-border); flex-shrink: 0;
-    }
-    .lib-search-bar {
       padding: 1rem 1.5rem; border-bottom: 1px solid var(--color-glass-border); flex-shrink: 0;
     }
+    .lib-modal-header .modal-title { font-size: 1rem; }
+    .lib-search-bar {
+      padding: 0.6rem 1rem; border-bottom: 1px solid var(--color-glass-border); flex-shrink: 0;
+    }
     .lib-search-bar input {
-      width: 100%; background: var(--color-glass); border: 1px solid var(--color-glass-border);
-      color: var(--color-white); font-family: var(--font-body); font-size: 0.85rem;
-      padding: 0.65rem 1rem; outline: none; border-radius: var(--radius-btn); transition: var(--trans-fast);
+      width: 100%; background: transparent; border: none; border-bottom: 1px solid var(--color-glass-border);
+      color: var(--color-white); font-family: var(--font-body); font-size: 0.78rem;
+      padding: 0.35rem 0.25rem; outline: none; transition: var(--trans-fast);
+      letter-spacing: 1px;
     }
     .lib-search-bar input:focus { border-color: var(--color-electric-blue); }
+    .lib-search-bar input::placeholder { color: rgba(255,255,255,0.2); letter-spacing: 2px; font-size: 0.7rem; }
     .lib-list {
-      flex: 1; overflow-y: auto; padding: 1rem 1.5rem;
+      flex: 1; overflow-y: auto; padding: 0.4rem 0;
       scrollbar-width: thin; scrollbar-color: var(--color-glass-border) transparent;
-      display: flex; flex-direction: column; gap: 0.5rem; min-height: 200px;
+      display: flex; flex-direction: column; min-height: 120px;
+    }
+    .lib-section-label {
+      font-size: 0.6rem; letter-spacing: 4px; text-transform: uppercase;
+      color: var(--color-text-meta); opacity: 0.4; padding: 0.5rem 1rem 0.25rem;
     }
     .lib-empty {
       flex: 1; display: flex; align-items: center; justify-content: center;
-      font-size: 0.72rem; letter-spacing: 3px; text-transform: uppercase;
-      color: var(--color-text-meta); opacity: 0.5;
+      font-size: 0.7rem; letter-spacing: 3px; text-transform: uppercase;
+      color: var(--color-text-meta); opacity: 0.4; padding: 2rem;
     }
-    .lib-card {
-      background: var(--color-glass); border: 1px solid var(--color-glass-border);
-      padding: 0.85rem 1rem; display: flex; align-items: center; gap: 1rem;
-      border-radius: var(--radius-btn); transition: var(--trans-fast);
+    /* ── Compact row ── */
+    .lib-row {
+      display: flex; align-items: center; gap: 0.5rem;
+      padding: 0.3rem 1rem; border-bottom: 1px solid rgba(255,255,255,0.03);
+      transition: background 0.15s; min-height: 34px;
     }
-    .lib-card:hover { border-color: rgba(255,255,255,0.15); }
-    .lib-card-body { flex: 1; min-width: 0; }
-    .lib-card-name {
-      font-family: var(--font-display); font-size: 0.85rem; letter-spacing: 1px;
-      white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 0.2rem;
+    .lib-row:hover { background: rgba(255,255,255,0.03); }
+    .lib-row-preset { border-left: 2px solid rgba(255,95,0,0.4); }
+    .lib-row-name {
+      flex: 1; min-width: 0; font-size: 0.78rem; letter-spacing: 0.5px;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer;
     }
-    .lib-card-meta {
-      font-size: 0.65rem; letter-spacing: 2px; text-transform: uppercase;
-      color: var(--color-text-meta); display: flex; gap: 0.75rem;
+    .lib-row-name:hover { color: var(--color-electric-blue); }
+    .lib-row-name-input {
+      flex: 1; background: rgba(0,163,255,0.08); border: 1px solid rgba(0,163,255,0.4);
+      color: var(--color-white); font-family: var(--font-body); font-size: 0.78rem;
+      padding: 0.15rem 0.4rem; outline: none; border-radius: 2px; min-width: 0;
     }
-    .lib-card-type { color: var(--color-electric-blue); }
-    .lib-card-actions { display: flex; gap: 0.5rem; flex-shrink: 0; }
-    .lib-btn {
-      font-size: 0.65rem; letter-spacing: 2px; text-transform: uppercase; cursor: pointer;
-      padding: 0.3rem 0.65rem; border-radius: var(--radius-btn); transition: var(--trans-fast);
-      font-family: var(--font-body);
+    .lib-row-type {
+      font-size: 0.58rem; letter-spacing: 2px; text-transform: uppercase;
+      color: var(--color-electric-blue); flex-shrink: 0; width: 68px; text-align: right;
     }
-    .lib-btn-load {
-      background: rgba(0,163,255,0.1); border: 1px solid rgba(0,163,255,0.3); color: var(--color-electric-blue);
+    .lib-row-preset .lib-row-type { color: var(--color-magma); }
+    .lib-row-date {
+      font-size: 0.58rem; color: rgba(255,255,255,0.2); flex-shrink: 0; width: 52px; text-align: right;
     }
-    .lib-btn-load:hover { background: rgba(0,163,255,0.2); }
-    .lib-btn-del {
-      background: rgba(255,50,50,0.08); border: 1px solid rgba(255,50,50,0.2); color: #ff5555;
+    .lib-row-actions { display: flex; gap: 0.2rem; flex-shrink: 0; }
+    .lib-icon-btn {
+      background: none; border: none; cursor: pointer; padding: 0.2rem 0.3rem;
+      border-radius: 2px; font-size: 0.75rem; line-height: 1; opacity: 0.45;
+      transition: opacity 0.15s, background 0.15s; color: var(--color-white);
     }
-    .lib-btn-del:hover { background: rgba(255,50,50,0.18); }
-    .lib-card-preset {
-      border-color: rgba(255,95,0,0.25);
-      background: rgba(255,95,0,0.04);
-    }
-    .lib-card-preset:hover { border-color: rgba(255,95,0,0.45); }
-    .lib-card-preset-badge {
-      color: var(--color-magma); letter-spacing: 3px; font-size: 0.6rem;
-      border: 1px solid rgba(255,95,0,0.35); padding: 0.1rem 0.35rem; border-radius: 2px;
-    }
+    .lib-icon-btn:hover { opacity: 1; background: rgba(255,255,255,0.07); }
+    .lib-icon-btn.load:hover  { color: var(--color-electric-blue); }
+    .lib-icon-btn.dup:hover   { color: var(--color-magma); }
+    .lib-icon-btn.del:hover   { color: #ff5555; }
+    .lib-icon-btn.edit:hover  { color: #ffe06b; }
     #modal-save .modal { width: 440px; }
 
     /* ── DATA NOTICE MODAL ─────────────────────────────────────────────── */
@@ -1781,6 +1786,42 @@
         renderLibrary(elLibSearch.value);
       }
 
+      function duplicateEntry(id) {
+        const src = library.find(e => e.id === id);
+        if (!src) return;
+        const copy = {
+          ...src,
+          id:   Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+          name: src.name + ' (copie)',
+          date: new Date().toISOString().slice(0, 10),
+        };
+        const idx = library.findIndex(e => e.id === id);
+        library.splice(idx + 1, 0, copy);
+        persistLibrary();
+        renderLibrary(elLibSearch.value);
+      }
+
+      function startRename(id, nameEl) {
+        const entry = library.find(e => e.id === id);
+        if (!entry) return;
+        const input = document.createElement('input');
+        input.className = 'lib-row-name-input';
+        input.value = entry.name;
+        nameEl.replaceWith(input);
+        input.focus(); input.select();
+        function commit() {
+          const v = input.value.trim();
+          if (v) entry.name = v;
+          persistLibrary();
+          renderLibrary(elLibSearch.value);
+        }
+        input.addEventListener('blur', commit);
+        input.addEventListener('keydown', e => {
+          if (e.key === 'Enter') { e.preventDefault(); input.blur(); }
+          if (e.key === 'Escape') { input.value = entry.name; input.blur(); }
+        });
+      }
+
       function loadEntry(entry) {
         elQueryInput.value = entry.query || '';
         state.script       = entry.script;
@@ -1812,8 +1853,8 @@
       }
 
       function renderLibrary(filter) {
-        const q  = (filter || '').toLowerCase();
-        const presets = PRESET_ENTRIES.filter(e =>
+        const q = (filter || '').toLowerCase();
+        const presets   = PRESET_ENTRIES.filter(e =>
           !q || e.name.toLowerCase().includes(q) || e.type.includes(q)
         );
         const userItems = library.filter(e =>
@@ -1829,36 +1870,65 @@
           return;
         }
 
-        [...presets, ...userItems].forEach(entry => {
-          const card = document.createElement('div');
-          card.className = 'lib-card' + (entry.preset ? ' lib-card-preset' : '');
-          card.innerHTML = entry.preset
-            ? `<div class="lib-card-body">
-                <div class="lib-card-name">${entry.name}</div>
-                <div class="lib-card-meta">
-                  <span class="lib-card-type">${entry.type}</span>
-                  <span class="lib-card-preset-badge">EXEMPLE</span>
-                </div>
-              </div>
-              <div class="lib-card-actions">
-                <button class="lib-btn lib-btn-load">Charger</button>
-              </div>`
-            : `<div class="lib-card-body">
-                <div class="lib-card-name">${entry.name}</div>
-                <div class="lib-card-meta">
-                  <span class="lib-card-type">${entry.type}</span>
-                  <span>${entry.date}</span>
-                </div>
-              </div>
-              <div class="lib-card-actions">
-                <button class="lib-btn lib-btn-load" data-id="${entry.id}">Charger</button>
-                <button class="lib-btn lib-btn-del"  data-id="${entry.id}">✕</button>
-              </div>`;
-          card.querySelector('.lib-btn-load').addEventListener('click', () => loadEntry(entry));
-          if (!entry.preset)
-            card.querySelector('.lib-btn-del').addEventListener('click', () => deleteEntry(entry.id));
-          elLibList.appendChild(card);
-        });
+        function makeRow(entry) {
+          const row = document.createElement('div');
+          row.className = 'lib-row' + (entry.preset ? ' lib-row-preset' : '');
+
+          const nameEl = document.createElement('span');
+          nameEl.className = 'lib-row-name';
+          nameEl.textContent = entry.name;
+          nameEl.title = entry.name;
+          nameEl.addEventListener('click', () => loadEntry(entry));
+
+          const typeEl = document.createElement('span');
+          typeEl.className = 'lib-row-type';
+          typeEl.textContent = { catscript: 'CATScript', ekl: 'EKL', ehi_eha: 'EHI/EHA' }[entry.type] || entry.type;
+
+          const dateEl = document.createElement('span');
+          dateEl.className = 'lib-row-date';
+          dateEl.textContent = entry.date;
+
+          const actions = document.createElement('div');
+          actions.className = 'lib-row-actions';
+
+          const btnLoad = document.createElement('button');
+          btnLoad.className = 'lib-icon-btn load'; btnLoad.title = 'Charger'; btnLoad.textContent = '↗';
+          btnLoad.addEventListener('click', () => loadEntry(entry));
+
+          actions.appendChild(btnLoad);
+
+          if (!entry.preset) {
+            const btnEdit = document.createElement('button');
+            btnEdit.className = 'lib-icon-btn edit'; btnEdit.title = 'Renommer'; btnEdit.textContent = '✎';
+            btnEdit.addEventListener('click', () => startRename(entry.id, nameEl));
+
+            const btnDup = document.createElement('button');
+            btnDup.className = 'lib-icon-btn dup'; btnDup.title = 'Dupliquer'; btnDup.textContent = '⧉';
+            btnDup.addEventListener('click', () => duplicateEntry(entry.id));
+
+            const btnDel = document.createElement('button');
+            btnDel.className = 'lib-icon-btn del'; btnDel.title = 'Supprimer'; btnDel.textContent = '✕';
+            btnDel.addEventListener('click', () => deleteEntry(entry.id));
+
+            actions.append(btnEdit, btnDup, btnDel);
+          }
+
+          row.append(nameEl, typeEl, dateEl, actions);
+          return row;
+        }
+
+        if (presets.length) {
+          const lbl = document.createElement('div');
+          lbl.className = 'lib-section-label'; lbl.textContent = 'Exemples';
+          elLibList.appendChild(lbl);
+          presets.forEach(e => elLibList.appendChild(makeRow(e)));
+        }
+        if (userItems.length) {
+          const lbl = document.createElement('div');
+          lbl.className = 'lib-section-label'; lbl.textContent = 'Mes scripts';
+          elLibList.appendChild(lbl);
+          userItems.forEach(e => elLibList.appendChild(makeRow(e)));
+        }
       }
 
       /* Library modal open / close */
