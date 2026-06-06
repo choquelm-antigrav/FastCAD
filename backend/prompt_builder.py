@@ -125,9 +125,87 @@ Rules:
 """
 
 
-def build_geometry_prompt(user_query: str, script_type: str = "") -> str:
+_GEOMETRY_PROMPT_FROM_SCRIPT_PART = """\
+A CATScript has been generated for CATIA V5. Analyse it and extract the actual 3D geometry.
+
+GENERATED CATSCRIPT:
+{script}
+
+USER REQUEST (context only):
+{user_query}
+
+Return ONLY a valid JSON object (no markdown, no explanation) describing the 3D geometry for visual preview.
+Extract REAL dimensions from the script:
+- Pad/Shaft → box or cylinder; SetFirstLimit value = height
+- Pocket/Groove → box with "hole" color; SetFirstLimit value = depth
+- Hole → cylinder; SetDiameter value / 2 = r; "hole" color
+- Fillet/Chamfer → ignore
+- Position offsets from HybridShapePointCoord or Dim assignments
+
+{{
+  "name": "PartName",
+  "type": "part",
+  "bodies": [
+    {{"id": "base",  "shape": "box",      "w": 160.0, "h": 6.0, "d": 90.0, "color": "main",    "x": 0.0, "y": 0.0, "z": 0.0}},
+    {{"id": "pad1",  "shape": "box",      "w": 40.0,  "h": 20.0,"d": 40.0, "color": "feature", "x": 60.0,"y": 3.0, "z": 25.0}},
+    {{"id": "hole1", "shape": "cylinder", "r": 4.5,   "h": 8.0,            "color": "hole",    "x": 20.0,"y": 0.0, "z": 20.0, "axis": "y"}}
+  ]
+}}
+
+Rules:
+- box: w=X-width, h=Y-height, d=Z-depth, x/y/z = center (mm)
+- cylinder: r=radius, h=height, axis="x"|"y"|"z", x/y/z = center (mm)
+- color: "main" (base body), "feature" (added pad/shaft), "hole" (removed material)
+- Use ONLY numerical values found in the script. 2–8 bodies max.
+- Return ONLY the raw JSON object, nothing else.\
+"""
+
+_GEOMETRY_PROMPT_FROM_SCRIPT_HARNESS = """\
+An EHI/EHA CATScript has been generated for CATIA V5. Analyse it and extract the actual harness routing AND the environment components.
+
+GENERATED CATSCRIPT:
+{script}
+
+USER REQUEST (context only):
+{user_query}
+
+Return ONLY a valid JSON object (no markdown, no explanation) describing the full 3D scene for visual preview.
+
+{{
+  "name": "HarnessScene",
+  "type": "harness",
+  "segments": [
+    {{"id": "trunk",   "from": [0,0,0],   "to": [500,0,0],   "r": 6.0, "color": "main"}},
+    {{"id": "branch1", "from": [250,0,0], "to": [250,80,40], "r": 4.0, "color": "branch"}}
+  ],
+  "bodies": [
+    {{"id": "bracket1", "shape": "box", "w": 80.0, "h": 40.0, "d": 20.0, "color": "environment", "x": 100.0, "y": 0.0, "z": 0.0}},
+    {{"id": "connector1", "shape": "cylinder", "r": 12.0, "h": 30.0, "color": "environment", "x": 480.0, "y": 0.0, "z": 0.0, "axis": "y"}}
+  ]
+}}
+
+Rules:
+- segments: harness routing — from/to are [x,y,z] (mm), r=radius. color: "main" (trunk) / "branch" (secondary). 2–8 segments max.
+- bodies: environment components (brackets, connectors, panels, bulkheads) deduced from the script.
+  - color MUST be "environment" — rendered at 50% opacity in the viewer.
+  - Extract approximate positions and sizes from HybridShapePointCoord calls or bounding box comments in the script.
+  - 0–6 environment bodies max.
+- Use ONLY values found in the script. Return ONLY the raw JSON object, nothing else.\
+"""
+
+
+def build_geometry_prompt(user_query: str, script_type: str = "", script: str = "") -> str:
     st = script_type.lower()
-    if "ehi" in st or "eha" in st:
+    is_harness = "ehi" in st or "eha" in st
+    if script.strip():
+        if is_harness:
+            return _GEOMETRY_PROMPT_FROM_SCRIPT_HARNESS.format(
+                script=script, user_query=user_query
+            )
+        return _GEOMETRY_PROMPT_FROM_SCRIPT_PART.format(
+            script=script, user_query=user_query
+        )
+    if is_harness:
         return _GEOMETRY_PROMPT_HARNESS.format(user_query=user_query)
     return _GEOMETRY_PROMPT_PART.format(user_query=user_query)
 

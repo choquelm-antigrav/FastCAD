@@ -5,6 +5,7 @@ T-101: load_pdf  |  T-102: chunk_pages  |  T-103: embed_and_store
 
 import argparse
 import uuid
+from datetime import datetime, timezone
 from pathlib import Path
 
 import fitz
@@ -141,12 +142,17 @@ def embed_and_store(chunks: list[dict], chroma_path: Path) -> int:
     contents = [c["content"] for c in new_chunks]
     embeddings = model.encode(contents, show_progress_bar=False).tolist()
 
+    ingested_at = datetime.now(timezone.utc).isoformat()
     collection.add(
         ids=[c["chunk_id"] for c in new_chunks],
         embeddings=embeddings,
         documents=contents,
         metadatas=[
-            {"source_file": c["source_file"], "page_number": c["page_number"]}
+            {
+                "source_file": c["source_file"],
+                "page_number": c["page_number"],
+                "ingested_at": ingested_at,
+            }
             for c in new_chunks
         ],
     )

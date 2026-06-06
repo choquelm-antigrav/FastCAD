@@ -80,6 +80,7 @@ def get_all_chunks(chroma_path: Path) -> list[dict]:
             "content": doc,
             "source_file": meta.get("source_file", ""),
             "page_number": meta.get("page_number", 0),
+            "ingested_at": meta.get("ingested_at", ""),
             "embedding": emb,
         })
     return chunks

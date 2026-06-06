@@ -92,6 +92,7 @@ class IngestResponse(BaseModel):
 class GeometryRequest(BaseModel):
     query: str = Field(..., min_length=1)
     script_type: str = Field(default="")
+    script: str = Field(default="")
     provider: Provider
     model: str = Field(..., min_length=1)
     api_key: str = Field(default="")
@@ -225,6 +226,7 @@ def knowledge_graph() -> GraphResponse:
             "label": (c["content"][:70] + "…") if len(c["content"]) > 70 else c["content"],
             "source": c["source_file"],
             "page": c["page_number"],
+            "ingested_at": c.get("ingested_at", ""),
         }
         for c in chunks
     ]
@@ -246,7 +248,7 @@ def knowledge_graph() -> GraphResponse:
 @router.post("/geometry", response_model=GeometryResponse)
 def geometry_preview(req: GeometryRequest) -> GeometryResponse:
     api_key = req.api_key.strip() or os.getenv(_ENV_KEYS.get(req.provider.value, ""), "")
-    prompt = build_geometry_prompt(req.query, req.script_type)
+    prompt = build_geometry_prompt(req.query, req.script_type, req.script)
     try:
         raw = call_llm(req.provider.value, req.model, api_key, prompt)
         raw = _strip_markdown_fences(raw)
