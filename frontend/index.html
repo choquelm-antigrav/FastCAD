@@ -1288,7 +1288,8 @@
       const API_URL       = 'http://localhost:8000/generate';
       const GEOMETRY_URL  = 'http://localhost:8000/geometry';
       const INGEST_URL    = 'http://localhost:8000/ingest';
-      const TIMEOUT_MS    = 120000;
+      const TIMEOUT_MS        = 120000;
+      const TIMEOUT_MS_LOCAL  = 600000;
       const LS_SETTINGS   = 'catscript_settings';
       const LS_NOTICE     = 'data_notice_accepted';
       const LS_DOCS       = 'catscript_docs';
@@ -1630,7 +1631,9 @@
         }
 
         const isLong = query.length > 400;
-        $('spinner-label').textContent = isLong ? 'Génération longue — patientez...' : 'Génération...';
+        $('spinner-label').textContent = NO_KEY_PROVIDERS.has(state.provider)
+          ? 'Modèle local — peut prendre 2-5 min...'
+          : (isLong ? 'Génération longue — patientez...' : 'Génération...');
         showSpinner();
         elBtnGenerate.disabled = true;
 
@@ -1644,7 +1647,8 @@
         };
 
         const controller = new AbortController();
-        const timeoutId  = setTimeout(() => controller.abort(), TIMEOUT_MS);
+        const effectiveTimeout = NO_KEY_PROVIDERS.has(state.provider) ? TIMEOUT_MS_LOCAL : TIMEOUT_MS;
+        const timeoutId  = setTimeout(() => controller.abort(), effectiveTimeout);
 
         try {
           const response = await fetch(API_URL, {
