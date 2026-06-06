@@ -1039,6 +1039,55 @@
     }
     #btn-save:hover:not(:disabled) { border-color: var(--color-magma); color: var(--color-magma); }
     #btn-save:disabled { opacity: 0.25; cursor: not-allowed; }
+    #btn-validate {
+      background: transparent; color: var(--color-text-muted);
+      border: 1px solid var(--color-glass-border); padding: 0.7rem 1.4rem;
+      font-family: var(--font-display); font-size: 0.8rem; text-transform: uppercase;
+      letter-spacing: 3px; cursor: pointer; border-radius: var(--radius-btn);
+      transition: var(--trans-fast);
+    }
+    #btn-validate:hover:not(:disabled) { border-color: var(--color-electric-blue); color: var(--color-electric-blue); }
+    #btn-validate:disabled { opacity: 0.25; cursor: not-allowed; }
+    /* ── VALIDATION PANEL ──────────────────────────────────────────────── */
+    #validation-panel {
+      border: 1px solid var(--color-glass-border); border-radius: var(--radius-btn);
+      overflow: hidden; display: none;
+    }
+    .val-header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 0.55rem 1rem; border-bottom: 1px solid var(--color-glass-border);
+      cursor: pointer; user-select: none;
+    }
+    .val-header-left { display: flex; align-items: center; gap: 0.75rem; }
+    .val-title {
+      font-size: 0.68rem; letter-spacing: 4px; text-transform: uppercase; color: var(--color-magma);
+    }
+    .val-badges { display: flex; gap: 0.4rem; }
+    .val-badge {
+      font-size: 0.58rem; letter-spacing: 2px; padding: 0.15rem 0.5rem;
+      border-radius: 2px; font-weight: 700;
+    }
+    .val-badge-error   { background: rgba(255,95,0,0.18);  color: #FF5F00; }
+    .val-badge-warning { background: rgba(255,200,0,0.15); color: #FFB800; }
+    .val-badge-info    { background: rgba(0,163,255,0.12); color: var(--color-electric-blue); }
+    .val-body {
+      max-height: 280px; overflow-y: auto;
+      scrollbar-width: thin; scrollbar-color: var(--color-glass-border) transparent;
+    }
+    .val-issue {
+      display: grid; grid-template-columns: 5rem 3.5rem 1fr;
+      gap: 0.5rem; align-items: baseline;
+      padding: 0.4rem 1rem; border-bottom: 1px solid rgba(255,255,255,0.04);
+      font-size: 0.7rem;
+    }
+    .val-issue:last-child { border-bottom: none; }
+    .val-issue-sev  { font-weight: 700; letter-spacing: 1px; text-transform: uppercase; font-size: 0.6rem; }
+    .val-issue-code { color: rgba(255,255,255,0.3); font-size: 0.6rem; letter-spacing: 1px; }
+    .val-issue-msg  { color: rgba(255,255,255,0.75); line-height: 1.5; }
+    .val-issue-line { color: rgba(255,255,255,0.3); font-size: 0.58rem; margin-left: 0.3rem; }
+    .sev-error   { color: #FF5F00; }
+    .sev-warning { color: #FFB800; }
+    .sev-info    { color: var(--color-electric-blue); }
     #modal-library .modal {
       width: 700px; max-height: 88vh; display: flex; flex-direction: column; padding: 0;
     }
@@ -1366,9 +1415,28 @@
           </div>
         </div>
 
+        <!-- Validation panel -->
+        <div id="validation-panel" aria-label="Rapport de validation statique">
+          <div class="val-header" id="val-toggle" role="button" tabindex="0" aria-expanded="true">
+            <div class="val-header-left">
+              <span class="val-title">Validation statique</span>
+              <div class="val-badges">
+                <span class="val-badge val-badge-error"   id="val-count-error">0 erreur</span>
+                <span class="val-badge val-badge-warning" id="val-count-warn">0 warning</span>
+                <span class="val-badge val-badge-info"    id="val-count-info">0 info</span>
+              </div>
+            </div>
+            <span class="dims-arrow" id="val-arrow">▼</span>
+          </div>
+          <div class="val-body" id="val-body"></div>
+        </div>
+
         <div id="export-bar">
           <button id="btn-copy" class="btn btn-ghost" aria-label="Copier dans le presse-papiers">
             Copier
+          </button>
+          <button id="btn-validate" disabled aria-label="Valider le script statiquement">
+            Valider
           </button>
           <button id="btn-save" disabled aria-label="Sauvegarder dans la bibliothèque">
             Sauvegarder
@@ -1619,6 +1687,7 @@
       const elConfidenceBadge = $('confidence-badge');
       const elResultTypeLabel = $('result-type-label');
       const elBtnCopy         = $('btn-copy');
+      const elBtnValidate     = $('btn-validate');
       const elBtnDownload     = $('btn-download');
       const elBtnSave         = $('btn-save');
       const elModalNotice     = $('modal-notice');
@@ -1810,6 +1879,8 @@
 
         state.script = data.script || '';
         elBtnSave.disabled = false;
+        elBtnValidate.disabled = false;
+        document.getElementById('validation-panel').style.display = 'none';
         elOutputResult.classList.add('visible');
         renderDims(state.script);
 
@@ -2255,6 +2326,71 @@
           setTimeout(() => { elBtnCopy.textContent = prev; }, 1800);
         } catch (_) {
           showError('Accès au presse-papiers refusé.');
+        }
+      });
+
+      /* ── VALIDATE ──────────────────────────────────────────────────────── */
+      const VALIDATE_URL = 'http://localhost:8000/validate';
+      const elValPanel   = $('validation-panel');
+      const elValBody    = $('val-body');
+      const elValArrow   = $('val-arrow');
+      let valBodyVisible = true;
+
+      $('val-toggle').addEventListener('click', () => {
+        valBodyVisible = !valBodyVisible;
+        elValBody.style.display  = valBodyVisible ? 'block' : 'none';
+        elValArrow.textContent   = valBodyVisible ? '▼' : '▶';
+      });
+
+      const SEV_LABEL = { error: 'Erreur', warning: 'Avertissement', info: 'Info' };
+      const SEV_CLASS = { error: 'sev-error', warning: 'sev-warning', info: 'sev-info' };
+
+      elBtnValidate.addEventListener('click', async () => {
+        const script = elScriptTextarea.value.trim();
+        if (!script) return;
+        elBtnValidate.disabled = true;
+        elBtnValidate.textContent = '…';
+
+        try {
+          const res  = await fetch(VALIDATE_URL, {
+            method:  'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body:    JSON.stringify({ script, script_type: state.scriptType }),
+          });
+          if (!res.ok) throw new Error('HTTP ' + res.status);
+          const data = await res.json();
+
+          // badges
+          $('val-count-error').textContent = `${data.error_count} erreur${data.error_count !== 1 ? 's' : ''}`;
+          $('val-count-warn').textContent  = `${data.warning_count} warning${data.warning_count !== 1 ? 's' : ''}`;
+          $('val-count-info').textContent  = `${data.info_count} info`;
+
+          // issues list
+          elValBody.innerHTML = '';
+          if (data.issues.length === 0) {
+            elValBody.innerHTML = '<div style="padding:0.75rem 1rem;font-size:0.7rem;color:#4ade80;letter-spacing:2px;">✓ Aucun problème détecté</div>';
+          } else {
+            data.issues.forEach(issue => {
+              const row = document.createElement('div');
+              row.className = 'val-issue';
+              const lineStr = issue.line ? `<span class="val-issue-line">L.${issue.line}</span>` : '';
+              row.innerHTML =
+                `<span class="val-issue-sev ${SEV_CLASS[issue.severity]}">${SEV_LABEL[issue.severity] || issue.severity}</span>` +
+                `<span class="val-issue-code">${issue.code}</span>` +
+                `<span class="val-issue-msg">${issue.message}${lineStr}</span>`;
+              elValBody.appendChild(row);
+            });
+          }
+
+          valBodyVisible = true;
+          elValBody.style.display = 'block';
+          elValArrow.textContent  = '▼';
+          elValPanel.style.display = 'block';
+        } catch (err) {
+          showError('Validation échouée : ' + err.message);
+        } finally {
+          elBtnValidate.disabled  = false;
+          elBtnValidate.textContent = 'Valider';
         }
       });
 

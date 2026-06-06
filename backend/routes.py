@@ -20,6 +20,7 @@ from backend.ingest import chunk_pages, embed_and_store, load_pdf
 from backend.llm_router import call_llm
 from backend.prompt_builder import build_drawing_prompt, build_geometry_prompt, build_prompt, build_reverse_prompt, build_routing_prompt
 from backend.rag_retriever import retrieve, get_all_chunks
+from backend.script_validator import validate as validate_script, Severity
 
 router = APIRouter()
 
@@ -120,6 +121,25 @@ class HarnessRoutingResponse(BaseModel):
 class DrawingResponse(BaseModel):
     script: str
     file_info: dict
+
+
+class ValidateRequest(BaseModel):
+    script:      str  = Field(..., min_length=1)
+    script_type: str  = Field(default="catscript")
+
+
+class ValidationIssue(BaseModel):
+    severity: str
+    line:     int | None = None
+    code:     str
+    message:  str
+
+
+class ValidateResponse(BaseModel):
+    issues:        list[ValidationIssue]
+    error_count:   int
+    warning_count: int
+    info_count:    int
 
 
 # ---------------------------------------------------------------------------
@@ -265,6 +285,20 @@ def geometry_preview(req: GeometryRequest) -> GeometryResponse:
 
 _REVERSE_EXTENSIONS = {".step", ".stp", ".catpart", ".catproduct"}
 _DMU_EXTENSIONS = {".step", ".stp", ".catproduct"}
+
+
+@router.post("/validate", response_model=ValidateResponse)
+def validate_endpoint(req: ValidateRequest) -> ValidateResponse:
+    issues = validate_script(req.script, req.script_type)
+    return ValidateResponse(
+        issues=[
+            ValidationIssue(severity=i.severity.value, line=i.line, code=i.code, message=i.message)
+            for i in issues
+        ],
+        error_count=   sum(1 for i in issues if i.severity == Severity.error),
+        warning_count= sum(1 for i in issues if i.severity == Severity.warning),
+        info_count=    sum(1 for i in issues if i.severity == Severity.info),
+    )
 
 
 @router.post("/reverse-engineer", response_model=ReverseEngineerResponse)
