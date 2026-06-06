@@ -1187,7 +1187,7 @@
         <select id="settings-model" aria-label="Sélectionner un modèle"></select>
       </div>
 
-      <div class="field-group">
+      <div class="field-group" id="apikey-group">
         <label class="field-label" for="settings-apikey">Clé API</label>
         <input type="password" id="settings-apikey" placeholder="sk-...">
       </div>
@@ -1268,11 +1268,11 @@
           { id: 'gpt-4-turbo',                            label: 'GPT-4 Turbo' },
         ],
         ollama: [
-          { id: 'llama3.2',                               label: 'Llama 3.2  (local, gratuit)' },
-          { id: 'llama3.1',                               label: 'Llama 3.1  (local, gratuit)' },
-          { id: 'mistral',                                label: 'Mistral    (local, gratuit)' },
-          { id: 'codellama',                              label: 'Code Llama (local, gratuit)' },
-          { id: 'phi3',                                   label: 'Phi-3      (local, léger)' },
+          { id: 'qwen2.5-coder:14b',                      label: 'Qwen 2.5 Coder 14B — code, installé' },
+          { id: 'deepseek-r1:8b',                         label: 'DeepSeek R1 8B    — raisonnement, installé' },
+          { id: 'llama3.1:8b',                            label: 'Llama 3.1 8B      — généraliste' },
+          { id: 'llama3.3:70b',                           label: 'Llama 3.3 70B     — meilleur open source' },
+          { id: 'llama3.2:3b',                            label: 'Llama 3.2 3B      — léger, rapide' },
         ],
         deepseek: [
           { id: 'deepseek-chat',                          label: 'DeepSeek V3   — très bon en code, ~$0.014/Mtok' },
@@ -1395,9 +1395,12 @@
         state.model = elSettingsModel.value;
       }
 
+      const NO_KEY_PROVIDERS = new Set(['ollama']);
+
       function applySettingsToUI() {
         populateModelSelect(state.provider);
         elSettingsApiKey.value = state.apiKey;
+        $('apikey-group').style.display = NO_KEY_PROVIDERS.has(state.provider) ? 'none' : '';
 
         elProviderGrid.querySelectorAll('.provider-card').forEach(card => {
           const isSelected = card.dataset.provider === state.provider;
@@ -1448,6 +1451,7 @@
             c.setAttribute('aria-checked', String(c === card));
           });
           populateModelSelect(state.provider);
+          $('apikey-group').style.display = NO_KEY_PROVIDERS.has(state.provider) ? 'none' : '';
           updateProviderBadge();
           updateGenerateButton();
           saveSettings();
