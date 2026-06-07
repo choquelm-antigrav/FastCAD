@@ -1,0 +1,1308 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FastCAD — Tool Presentation</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&family=Syne:wght@700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/d3@7/dist/d3.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+<style>
+:root{
+  --color-bg-void:#010204;
+  --color-glass:rgba(255,255,255,0.02);
+  --color-glass-2:rgba(255,255,255,0.035);
+  --color-glass-border:rgba(255,255,255,0.08);
+  --color-electric-blue:#00A3FF;
+  --color-magma:#FF5F00;
+  --grad-magma:linear-gradient(135deg,#FF5F00 0%,#A1665A 100%);
+  --color-lime:#7CFC00;
+  --font-display:'Syne',sans-serif;
+  --font-body:'Inter',sans-serif;
+  --font-mono:'JetBrains Mono',monospace;
+  --trans-smooth:all 0.6s cubic-bezier(0.19,1,0.22,1);
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+html{scroll-behavior:smooth;}
+body{
+  font-family:var(--font-body);
+  background-color:var(--color-bg-void);
+  color:#fff;line-height:1.6;overflow-x:hidden;
+}
+/* AMBIANCE */
+.orbit-bg{position:fixed;top:50%;left:50%;width:150vw;height:150vh;transform:translate(-50%,-50%);z-index:-1;animation:globalRotate 40s infinite linear;}
+.leak{position:absolute;width:60vw;height:60vw;border-radius:50%;filter:blur(180px);opacity:0.07;}
+.leak-1{top:0;left:20%;background:var(--color-magma);}
+.leak-2{bottom:0;right:20%;background:var(--color-electric-blue);}
+@keyframes globalRotate{from{transform:translate(-50%,-50%) rotate(0deg);}to{transform:translate(-50%,-50%) rotate(360deg);}}
+
+.container{max-width:1280px;margin:0 auto;padding:3rem 2rem;}
+
+/* TYPO */
+h1{font-family:var(--font-display);font-size:6rem;line-height:0.8;text-transform:uppercase;letter-spacing:-4px;margin-bottom:1rem;}
+h2{font-family:var(--font-display);font-size:3rem;text-transform:uppercase;letter-spacing:-2px;margin-bottom:1rem;}
+h3{font-family:var(--font-display);font-size:1.6rem;text-transform:uppercase;color:var(--color-electric-blue);margin-bottom:1rem;}
+h4{font-family:var(--font-display);font-size:1.05rem;text-transform:uppercase;letter-spacing:3px;color:#fff;margin-bottom:1rem;}
+h5{font-family:var(--font-body);font-size:0.7rem;font-weight:700;text-transform:uppercase;letter-spacing:4px;opacity:0.4;}
+.subtitle{font-size:1.15rem;opacity:0.55;font-weight:300;}
+.section-label{font-size:0.7rem;letter-spacing:5px;color:var(--color-magma);text-transform:uppercase;margin-bottom:1.5rem;display:block;}
+p{opacity:0.85;}
+a{color:var(--color-electric-blue);text-decoration:none;}
+
+/* COMPONENTS */
+.glass-panel{background:var(--color-glass);backdrop-filter:blur(40px);border:1px solid var(--color-glass-border);padding:2.5rem;position:relative;transition:var(--trans-smooth);border-radius:2px;}
+.glass-panel.tight{padding:1.6rem;}
+.sep-scan{height:1px;background:var(--color-glass-border);margin:2.5rem 0;position:relative;overflow:hidden;}
+.sep-scan::after{content:'';position:absolute;left:-100%;top:0;width:40%;height:100%;background:linear-gradient(90deg,transparent,var(--color-electric-blue),transparent);animation:scanLine 5s infinite ease-in-out;}
+@keyframes scanLine{to{left:100%;}}
+
+/* HEADER */
+header.hero{text-align:center;padding:4rem 0 2rem;}
+header.hero h1{font-size:7rem;background:var(--grad-magma);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;display:inline-block;}
+header.hero .subtitle{max-width:680px;margin:0 auto 2.5rem;}
+.hero-diagram{max-width:1100px;margin:0 auto;}
+
+/* TABS */
+.tabs-container{display:flex;gap:2.5rem;border-bottom:1px solid var(--color-glass-border);margin:3rem 0 2.5rem;flex-wrap:wrap;position:sticky;top:0;background:rgba(1,2,4,0.82);backdrop-filter:blur(20px);z-index:50;padding-top:1rem;}
+.tab-trigger{padding-bottom:1rem;cursor:pointer;opacity:0.3;font-size:0.78rem;letter-spacing:2px;text-transform:uppercase;transition:0.3s;font-weight:600;border-bottom:2px solid transparent;white-space:nowrap;}
+.tab-trigger:hover{opacity:0.7;}
+.tab-trigger.active{opacity:1;border-bottom:2px solid var(--color-magma);}
+.tab-panel{display:none;animation:fadeIn 0.6s ease;}
+.tab-panel.active{display:block;}
+@keyframes fadeIn{from{opacity:0;transform:translateY(10px);}to{opacity:1;transform:translateY(0);}}
+
+/* TABLES */
+table{width:100%;border-collapse:collapse;font-size:0.86rem;margin:1rem 0;}
+th{font-family:var(--font-body);font-size:0.65rem;font-weight:700;text-transform:uppercase;letter-spacing:2px;color:var(--color-electric-blue);text-align:left;padding:0.7rem 0.8rem;border-bottom:1px solid var(--color-glass-border);}
+td{padding:0.65rem 0.8rem;border-bottom:1px solid rgba(255,255,255,0.04);opacity:0.85;vertical-align:top;}
+tr:hover td{background:rgba(255,255,255,0.015);}
+td code,p code,li code{font-family:var(--font-mono);font-size:0.82em;color:var(--color-magma);background:rgba(255,95,0,0.07);padding:0.1em 0.4em;border-radius:3px;}
+
+/* CODE BLOCK */
+pre{font-family:var(--font-mono);font-size:0.78rem;line-height:1.5;background:rgba(0,0,0,0.4);border:1px solid var(--color-glass-border);border-left:2px solid var(--color-electric-blue);padding:1.2rem 1.4rem;border-radius:3px;overflow-x:auto;margin:1rem 0;color:#cfe;}
+pre .cmt{color:rgba(255,255,255,0.35);}
+pre .kw{color:var(--color-magma);}
+
+/* GRID HELPERS */
+.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:1.5rem;}
+.grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:1.5rem;}
+.grid-auto{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:1.2rem;}
+@media(max-width:900px){.grid-2,.grid-3{grid-template-columns:1fr;}h1{font-size:3.5rem;}header.hero h1{font-size:3.8rem;}h2{font-size:2rem;}}
+
+/* PILLS / BADGES */
+.pill{display:inline-block;font-size:0.62rem;font-weight:700;letter-spacing:2px;text-transform:uppercase;padding:0.28rem 0.7rem;border-radius:2px;border:1px solid var(--color-glass-border);}
+.pill-blue{color:var(--color-electric-blue);border-color:rgba(0,163,255,0.4);background:rgba(0,163,255,0.06);}
+.pill-magma{color:var(--color-magma);border-color:rgba(255,95,0,0.4);background:rgba(255,95,0,0.06);}
+.pill-lime{color:var(--color-lime);border-color:rgba(124,252,0,0.35);background:rgba(124,252,0,0.06);}
+.pill-grey{color:rgba(255,255,255,0.6);}
+
+/* METRIC CARD */
+.metric{text-align:center;padding:1.6rem 1rem;}
+.metric .num{font-family:var(--font-display);font-size:3rem;line-height:1;background:var(--grad-magma);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;}
+.metric .num.blue{background:none;-webkit-text-fill-color:var(--color-electric-blue);color:var(--color-electric-blue);}
+.metric .lbl{font-size:0.62rem;letter-spacing:3px;text-transform:uppercase;opacity:0.45;margin-top:0.6rem;}
+
+/* UC CARD */
+.uc-card{border:1px solid var(--color-glass-border);background:var(--color-glass);padding:1.3rem;border-radius:3px;transition:var(--trans-smooth);border-top:2px solid transparent;}
+.uc-card:hover{transform:translateY(-4px);border-top-color:var(--color-magma);background:var(--color-glass-2);}
+.uc-card .uc-id{font-family:var(--font-display);font-size:1.1rem;color:var(--color-electric-blue);letter-spacing:1px;}
+.uc-card .uc-title{font-weight:700;font-size:0.95rem;margin:0.3rem 0 0.6rem;}
+.uc-card .uc-op{font-size:0.8rem;opacity:0.6;line-height:1.45;}
+
+/* GLOSSARY ITEM */
+.gloss-item{border-bottom:1px solid rgba(255,255,255,0.05);padding:1rem 0;}
+.gloss-item .term{font-family:var(--font-display);font-size:1rem;text-transform:uppercase;letter-spacing:1px;color:#fff;}
+.gloss-item .syn{font-size:0.78rem;color:var(--color-electric-blue);margin:0.35rem 0;font-family:var(--font-mono);}
+.gloss-item .desc{font-size:0.85rem;opacity:0.7;}
+.gloss-item .ex{font-size:0.8rem;opacity:0.55;font-style:italic;margin-top:0.3rem;}
+
+/* MERMAID */
+.mermaid{display:flex;justify-content:center;margin:1.5rem 0;background:rgba(0,0,0,0.18);border:1px solid var(--color-glass-border);border-radius:3px;padding:1.5rem;overflow-x:auto;}
+.diagram-cap{font-size:0.65rem;letter-spacing:2px;text-transform:uppercase;opacity:0.4;text-align:center;margin-top:-0.5rem;margin-bottom:2rem;}
+
+/* GRAPH */
+#kvg-container{position:relative;width:100%;height:620px;background:radial-gradient(circle at 50% 50%,rgba(0,163,255,0.04),rgba(0,0,0,0.3));border:1px solid var(--color-glass-border);border-radius:3px;overflow:hidden;}
+#kvg-svg{width:100%;height:100%;display:block;cursor:grab;}
+.kvg-legend{position:absolute;top:1rem;right:1rem;background:rgba(1,2,4,0.8);border:1px solid var(--color-glass-border);border-radius:3px;padding:0.9rem 1rem;font-size:0.72rem;backdrop-filter:blur(10px);max-width:230px;}
+.kvg-legend .lt{font-size:0.6rem;letter-spacing:3px;text-transform:uppercase;opacity:0.4;margin-bottom:0.6rem;}
+.legend-item{display:flex;align-items:center;gap:0.5rem;margin:0.35rem 0;opacity:0.85;}
+.legend-dot{width:11px;height:11px;border-radius:50%;flex-shrink:0;}
+.legend-fresh{background:#FFD700;box-shadow:0 0 8px #FFD700;animation:freshPulse 2s ease-in-out infinite;}
+@keyframes freshPulse{0%,100%{opacity:1;}50%{opacity:0.4;}}
+.kvg-info{position:absolute;top:1rem;left:1rem;width:280px;background:rgba(1,2,4,0.88);border:1px solid var(--color-glass-border);border-left:2px solid var(--color-electric-blue);border-radius:3px;padding:1rem 1.1rem;transform:translateX(-340px);transition:transform 0.4s cubic-bezier(0.19,1,0.22,1);}
+.kvg-info.visible{transform:translateX(0);}
+.kvg-info .src{font-family:var(--font-mono);font-size:0.82rem;font-weight:600;}
+.kvg-info .meta{font-size:0.68rem;opacity:0.5;letter-spacing:1px;margin:0.3rem 0 0.7rem;text-transform:uppercase;}
+.kvg-info .body{font-size:0.8rem;opacity:0.8;line-height:1.5;}
+.kvg-tooltip{position:fixed;pointer-events:none;background:rgba(1,2,4,0.92);border:1px solid var(--color-glass-border);border-radius:3px;padding:0.4rem 0.7rem;font-size:0.72rem;display:none;z-index:200;}
+.node-fresh{animation:freshPulse 2s ease-in-out infinite;}
+.kvg-controls{position:absolute;bottom:1rem;left:1rem;font-size:0.62rem;letter-spacing:1px;opacity:0.35;text-transform:uppercase;}
+
+ul.clean{list-style:none;}
+ul.clean li{padding:0.35rem 0 0.35rem 1.4rem;position:relative;font-size:0.88rem;opacity:0.85;}
+ul.clean li::before{content:'▸';position:absolute;left:0;color:var(--color-magma);}
+.note{font-size:0.78rem;opacity:0.5;border-left:2px solid var(--color-magma);padding:0.3rem 0 0.3rem 0.9rem;margin:1rem 0;}
+.route-badge{display:inline-flex;align-items:center;gap:0.5rem;font-family:var(--font-display);font-size:0.85rem;text-transform:uppercase;letter-spacing:1px;padding:0.5rem 1rem;border:1px solid var(--color-glass-border);border-radius:2px;}
+</style>
+</head>
+<body>
+
+<div class="orbit-bg"><div class="leak leak-1"></div><div class="leak leak-2"></div></div>
+
+<div class="container">
+
+  <!-- ══════════════ HERO ══════════════ -->
+  <header class="hero">
+    <h5>CATScript-AI // PoC v0.2 // Phase 2</h5>
+    <h1>FastCAD</h1>
+    <p class="subtitle">Automating CATIA with CATScripts generated from the designer's will</p>
+    <div class="hero-diagram">
+      <div class="mermaid" id="hero-mermaid">
+flowchart LR
+    D(["👤 Designer"]):::actor
+    D ==> NG["New generation"]:::route
+    D ==> RE["CAD retroengineering"]:::route
+    D ==> CD["CAD drawing"]:::route
+    NG ==> FC{{"FastCAD"}}:::core
+    RE ==> FC
+    CD ==> FC
+    FC ==> CS["📄 CATScript file"]:::file
+    CS ==> CV["🖥️ CATIA V5"]:::catia
+    classDef actor fill:#00A3FF22,stroke:#00A3FF,stroke-width:2px,color:#fff;
+    classDef route fill:#ffffff08,stroke:#ffffff44,stroke-width:1px,color:#cfe;
+    classDef core fill:#FF5F0022,stroke:#FF5F00,stroke-width:3px,color:#fff,font-weight:bold;
+    classDef file fill:#7CFC0015,stroke:#7CFC00,stroke-width:1.5px,color:#fff;
+    classDef catia fill:#00A3FF15,stroke:#00A3FF,stroke-width:2px,color:#fff;
+      </div>
+      <div class="diagram-cap">Volonté du concepteur → trois voies d'entrée → moteur FastCAD → script natif → exécution CATIA V5 R27</div>
+    </div>
+  </header>
+
+  <!-- ══════════════ TABS ══════════════ -->
+  <nav class="tabs-container" role="tablist">
+    <div class="tab-trigger active" data-tab="spec" role="tab">Specification</div>
+    <div class="tab-trigger" data-tab="arch" role="tab">Architecture</div>
+    <div class="tab-trigger" data-tab="kvg" role="tab">Knowledge Vector Graph</div>
+    <div class="tab-trigger" data-tab="uc" role="tab">Use Cases Catalog</div>
+    <div class="tab-trigger" data-tab="gloss" role="tab">Glossary</div>
+  </nav>
+
+  <!-- ════════════════════════════════════════════════════════════════ -->
+  <!-- TAB 1 — SPECIFICATION                                              -->
+  <!-- ════════════════════════════════════════════════════════════════ -->
+  <section class="tab-panel active" id="tab-spec">
+    <span class="section-label">01 _ Solution Specification — CATScript-AI v0.2 (PoC)</span>
+
+    <div class="glass-panel">
+      <h3>Executive Summary</h3>
+      <p>CATScript-AI est un <strong>Proof of Concept solo</strong> qui permet aux concepteurs mécaniques de générer des scripts CATIA V5 R27 prêts à l'emploi — macros CATScript/VBA, scripts EKL, routages de harnais EHI/EHA — à partir de langage naturel ou d'entrées structurées. Le système repose sur une architecture <strong>RAG (Retrieval-Augmented Generation)</strong> ancrée dans les documents de savoir-faire de l'équipe, avec une couche de recherche vectorielle conçue pour évoluer vers un Knowledge Graph complet.</p>
+    </div>
+
+    <div class="sep-scan"></div>
+
+    <!-- METRICS -->
+    <div class="grid-3">
+      <div class="glass-panel metric"><div class="num">3</div><div class="lbl">Types de script — CATScript · EKL · EHI/EHA</div></div>
+      <div class="glass-panel metric"><div class="num blue">4</div><div class="lbl">Providers LLM — Anthropic · Google · OpenAI · Ollama</div></div>
+      <div class="glass-panel metric"><div class="num">&lt;30s</div><div class="lbl">Temps de réponse cible / génération</div></div>
+    </div>
+
+    <div class="sep-scan"></div>
+
+    <!-- OBJECTIVES -->
+    <h3>Objectifs</h3>
+    <div class="glass-panel tight">
+      <table>
+        <tr><th>#</th><th>Objectif</th></tr>
+        <tr><td><span class="pill pill-magma">O1</span></td><td>Réduire le temps d'écriture de scripts CATIA répétitifs depuis zéro</td></tr>
+        <tr><td><span class="pill pill-magma">O2</span></td><td>Capturer et réutiliser le savoir-faire d'équipe embarqué dans les documents</td></tr>
+        <tr><td><span class="pill pill-magma">O3</span></td><td>Livrer un PoC fonctionnel dans un délai de développeur solo</td></tr>
+        <tr><td><span class="pill pill-magma">O4</span></td><td>Établir une fondation évolutive vers un Knowledge Graph, scalable multi-équipes</td></tr>
+      </table>
+    </div>
+
+    <div class="sep-scan"></div>
+
+    <!-- SCOPE -->
+    <h3>Périmètre (PoC)</h3>
+    <div class="grid-2">
+      <div class="glass-panel" style="border-top:2px solid var(--color-lime);">
+        <h4 style="color:var(--color-lime);">✓ In Scope</h4>
+        <ul class="clean">
+          <li>Entrée langage naturel décrivant l'opération souhaitée</li>
+          <li>Récupération du savoir-faire depuis PDF via recherche vectorielle (RAG)</li>
+          <li>Génération de scripts CATIA V5 R27 — CATScript/VBA, EKL, EHI/EHA</li>
+          <li>Aperçu du script avant livraison + édition inline</li>
+          <li>Export <code>.CATScript</code> / <code>.txt</code> pour exécution manuelle</li>
+          <li>Panneau de configuration LLM piloté par l'UI (localStorage)</li>
+        </ul>
+      </div>
+      <div class="glass-panel" style="border-top:2px solid var(--color-magma);">
+        <h4 style="color:var(--color-magma);">✕ Out of Scope</h4>
+        <ul class="clean">
+          <li>Exécution directe dans CATIA (pas de pont COM en PoC)</li>
+          <li>Plugin CATIA / UI embarquée</li>
+          <li>Support CATIA V6 / 3DEXPERIENCE</li>
+          <li>Connaissance temps réel de l'état du modèle CATIA</li>
+          <li>Couche multi-utilisateurs / authentification</li>
+          <li>Déploiement IT Airbus / revue de sécurité</li>
+          <li>Aperçu géométrique 3D/2D des scripts générés</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="sep-scan"></div>
+
+    <!-- USERS -->
+    <h3>Utilisateurs</h3>
+    <div class="glass-panel tight">
+      <table>
+        <tr><th>Rôle</th><th>Description</th><th>Besoin principal</th></tr>
+        <tr><td><strong>Concepteur mécanique</strong></td><td>Utilisateur CATIA V5 quotidien</td><td>Générer des scripts vite, sans coder</td></tr>
+        <tr><td><strong>Team Lead / Knowledge Owner</strong></td><td>Maintient les documents de savoir-faire</td><td>Garantir capture & réutilisation des pratiques</td></tr>
+        <tr><td><strong>PoC Developer (Max)</strong></td><td>Constructeur solo</td><td>Stack simple et maintenable</td></tr>
+      </table>
+    </div>
+
+    <div class="sep-scan"></div>
+
+    <!-- FUNCTIONAL REQUIREMENTS -->
+    <h3>Exigences Fonctionnelles</h3>
+    <div class="grid-2">
+      <div class="glass-panel tight">
+        <h4>5.1 — Interface d'entrée</h4>
+        <table>
+          <tr><td><code>F-01</code></td><td>Accepter une description langage naturel de l'opération</td></tr>
+          <tr><td><code>F-02</code></td><td>Choisir le type de script cible (CATScript/EKL/EHI-EHA)</td></tr>
+          <tr><td><code>F-03</code></td><td>Champs structurés optionnels pour affiner la génération</td></tr>
+        </table>
+        <h4 style="margin-top:1.5rem;">5.2 — Récupération savoir-faire (RAG)</h4>
+        <table>
+          <tr><td><code>F-04</code></td><td>Ingérer les PDF et les découper en segments</td></tr>
+          <tr><td><code>F-05</code></td><td>Embedder les chunks via modèle vectoriel</td></tr>
+          <tr><td><code>F-06</code></td><td>Récupérer les top-k chunks les plus pertinents</td></tr>
+          <tr><td><code>F-07</code></td><td>Injecter les chunks dans le prompt comme contexte</td></tr>
+          <tr><td><code>F-08</code></td><td>Afficher les documents sources (traçabilité)</td></tr>
+        </table>
+      </div>
+      <div class="glass-panel tight">
+        <h4>5.3 — Génération de script</h4>
+        <table>
+          <tr><td><code>F-09</code></td><td>Script syntaxiquement valide CATIA V5 R27</td></tr>
+          <tr><td><code>F-10</code></td><td>Commentaires inline expliquant chaque étape majeure</td></tr>
+          <tr><td><code>F-11</code></td><td>Avertir si aucun chunk pertinent (basse confiance)</td></tr>
+          <tr><td><code>F-12</code></td><td>Régénération avec paramètres ajustés</td></tr>
+        </table>
+        <h4 style="margin-top:1.5rem;">5.4–5.6 — Config · Preview · Export</h4>
+        <table>
+          <tr><td><code>F-13/20</code></td><td>Panneau Settings : provider, modèle, clé API (localStorage)</td></tr>
+          <tr><td><code>F-17</code></td><td>Clé API masquée, jamais loggée côté serveur</td></tr>
+          <tr><td><code>F-19</code></td><td>Endpoint <code>/generate</code> provider-agnostique</td></tr>
+          <tr><td><code>F-21/23</code></td><td>Preview syntax-highlight + édition inline</td></tr>
+          <tr><td><code>F-24/25</code></td><td>Copie presse-papier + download <code>.CATScript</code></td></tr>
+        </table>
+      </div>
+    </div>
+
+    <div class="sep-scan"></div>
+
+    <!-- NON FUNCTIONAL -->
+    <h3>Exigences Non-Fonctionnelles</h3>
+    <div class="glass-panel tight">
+      <table>
+        <tr><th>ID</th><th>Exigence</th></tr>
+        <tr><td><code>NF-01</code></td><td>Temps de génération &lt; 30 s pour requêtes typiques</td></tr>
+        <tr><td><code>NF-02</code></td><td>Tourne sur une seule machine développeur (Windows 10/11) sans infra serveur</td></tr>
+        <tr><td><code>NF-03</code></td><td>Opérable via navigateur local (localhost)</td></tr>
+        <tr><td><code>NF-04</code></td><td>Maintenable par un seul développeur, sans ops dédié</td></tr>
+        <tr><td><code>NF-05</code></td><td>Aucune donnée confidentielle vers API externe sans accord explicite (data notice)</td></tr>
+      </table>
+    </div>
+
+    <div class="sep-scan"></div>
+
+    <!-- HIGH LEVEL ARCHITECTURE -->
+    <h3>Architecture Haut Niveau</h3>
+    <div class="glass-panel">
+      <div class="mermaid">
+flowchart TB
+    subgraph UI["🌐 Browser UI — localhost"]
+        direction LR
+        IN["NL Input + Script Type"]:::uin
+        SET["⚙ Settings<br/>Provider/Model/Key<br/>(localStorage)"]:::uin
+        PRV["Code Preview + Edit<br/>Copy / Download"]:::uin
+    end
+    UI -->|"HTTP {query, script_type,<br/>provider, model, api_key}"| BE
+    subgraph BE["🐍 Python Backend — FastAPI"]
+        direction TB
+        RAG["RAG Retriever<br/>(vector search · ChromaDB)"]:::svc
+        PB["LLM Prompt Builder<br/>system + chunks + query"]:::svc
+        ING["PDF Ingestion<br/>Chunker + Embedder"]:::svc
+        ROUTER["LLM Provider Router"]:::core
+        RAG --> PB --> ROUTER
+        ING --> RAG
+        ROUTER --> A["Anthropic"]:::prov
+        ROUTER --> G["Google Gemini"]:::prov
+        ROUTER --> O["OpenAI"]:::prov
+        ROUTER --> OL["Ollama (local)"]:::prov
+    end
+    DOCS[("/data/pdf_docs/<br/>team know-how PDFs")]:::store
+    DOCS --> ING
+    classDef uin fill:#00A3FF12,stroke:#00A3FF55,color:#cfe;
+    classDef svc fill:#ffffff06,stroke:#ffffff33,color:#fff;
+    classDef core fill:#FF5F0022,stroke:#FF5F00,stroke-width:2px,color:#fff;
+    classDef prov fill:#7CFC0010,stroke:#7CFC0066,color:#dfd;
+    classDef store fill:#00A3FF10,stroke:#00A3FF55,color:#cfe;
+      </div>
+      <div class="diagram-cap">§7.1 — Architecture haut niveau : UI navigateur ↔ backend FastAPI ↔ corpus PDF</div>
+    </div>
+
+    <div class="sep-scan"></div>
+
+    <!-- RAG PIPELINE -->
+    <h3>Pipeline RAG</h3>
+    <div class="grid-2">
+      <div class="glass-panel">
+        <div class="mermaid">
+flowchart TB
+    P1["📄 Load PDF"]:::s --> P2["Extract text / page"]:::s
+    P2 --> P3["Chunk ≈500 tok<br/>overlap 50"]:::s
+    P3 --> P4["Embed chunk"]:::s
+    P4 --> P5[("ChromaDB<br/>+ metadata")]:::db
+    classDef s fill:#ffffff06,stroke:#ffffff33,color:#fff;
+    classDef db fill:#FF5F0015,stroke:#FF5F00,color:#fff;
+        </div>
+        <div class="diagram-cap">Ingestion — une fois par lot de documents</div>
+      </div>
+      <div class="glass-panel">
+        <div class="mermaid">
+flowchart TB
+    Q["Embed user query"]:::s --> R["Retrieve top-k (k=5)"]:::s
+    R --> B["Build prompt:<br/>system + chunks + query"]:::s
+    B --> L["Call LLM API"]:::core
+    L --> O["Script + source refs → UI"]:::s
+    classDef s fill:#ffffff06,stroke:#ffffff33,color:#fff;
+    classDef core fill:#FF5F0022,stroke:#FF5F00,stroke-width:2px,color:#fff;
+        </div>
+        <div class="diagram-cap">À la génération — temps réel</div>
+      </div>
+    </div>
+
+    <div class="glass-panel" style="margin-top:1.5rem;">
+      <h4>Prompt Design (squelette §7.4)</h4>
+      <pre><span class="kw">SYSTEM:</span>
+You are an expert CATIA V5 R27 automation engineer.
+You generate syntactically correct {script_type} scripts.
+You ONLY use the know-how context provided below.
+If the context is insufficient, say so explicitly before generating.
+Always add inline comments to explain each step.
+
+<span class="kw">KNOW-HOW CONTEXT:</span> {retrieved_chunks}
+<span class="kw">USER REQUEST:</span> {user_query}
+
+Generate the script now.</pre>
+    </div>
+
+    <div class="sep-scan"></div>
+
+    <!-- TECH STACK -->
+    <h3>Stack Technologique</h3>
+    <div class="glass-panel tight">
+      <table>
+        <tr><th>Couche</th><th>Technologie</th><th>Rationale</th></tr>
+        <tr><td>UI</td><td>HTML+JS pur / React (Vite)</td><td>Léger, tourne dans le navigateur</td></tr>
+        <tr><td>Backend</td><td>Python 3.11 + FastAPI</td><td>Solo-friendly, async, extensible</td></tr>
+        <tr><td>Ingestion PDF</td><td><code>pdfplumber</code> / <code>PyMuPDF</code></td><td>Extraction texte fiable</td></tr>
+        <tr><td>Chunking</td><td>LangChain <code>RecursiveCharacterTextSplitter</code></td><td>Éprouvé, configurable</td></tr>
+        <tr><td>Embeddings</td><td><code>all-MiniLM-L6-v2</code> (local)</td><td>Rapide, sans API, dim 384</td></tr>
+        <tr><td>Vector store</td><td>ChromaDB (fichier local)</td><td>Pas de serveur, persistant</td></tr>
+        <tr><td>LLM Router</td><td><code>llm_router.py</code></td><td>Interface unique, provider-swappable</td></tr>
+        <tr><td>Config LLM</td><td>Browser <code>localStorage</code></td><td>Zéro infra, PoC-appropriate</td></tr>
+      </table>
+    </div>
+
+    <div class="sep-scan"></div>
+
+    <!-- ROADMAP -->
+    <h3>Roadmap Phasée</h3>
+    <div class="glass-panel">
+      <div class="mermaid">
+flowchart LR
+    subgraph PH1["PHASE 1 — PoC ✓"]
+        direction TB
+        A1["Pipeline ingestion PDF"]
+        A2["Vector search ChromaDB"]
+        A3["Génération CATScript/EKL/EHI"]
+        A4["UI locale preview+export"]
+    end
+    subgraph PH2["PHASE 2 — Knowledge Graph ◆"]
+        direction TB
+        B1["KG (Neo4j/RDFLib)"]
+        B2["Entités & contraintes CATIA"]
+        B3["Traversée de graphe"]
+        B4["Word/Excel/Confluence"]
+    end
+    subgraph PH3["PHASE 3 — Integration & Scale"]
+        direction TB
+        C1["Pont COM CATIA V5"]
+        C2["Déploiement multi-user"]
+        C3["RBAC + gouvernance"]
+        C4["Revue sécurité IT"]
+    end
+    PH1 ==> PH2 ==> PH3
+    classDef def fill:#ffffff06,stroke:#ffffff33,color:#fff;
+      </div>
+      <div class="diagram-cap">§9 — Trois phases : PoC → Knowledge Graph → Intégration & Scale</div>
+    </div>
+
+    <div class="sep-scan"></div>
+
+    <!-- RISKS -->
+    <h3>Risques & Mitigations</h3>
+    <div class="glass-panel tight">
+      <table>
+        <tr><th>Risque</th><th>Prob.</th><th>Impact</th><th>Mitigation</th></tr>
+        <tr><td>Script CATIA syntaxiquement invalide</td><td><span class="pill pill-grey">Medium</span></td><td><span class="pill pill-magma">High</span></td><td>Validateur/linter + exemples API dans le prompt</td></tr>
+        <tr><td>Extraction PDF de mauvaise qualité (scans)</td><td><span class="pill pill-grey">Medium</span></td><td><span class="pill pill-grey">Medium</span></td><td>Fallback OCR (Tesseract), flag low-quality</td></tr>
+        <tr><td>Chunks récupérés non pertinents</td><td><span class="pill pill-grey">Medium</span></td><td><span class="pill pill-magma">High</span></td><td>Tuning chunk size/overlap, éval retrieval</td></tr>
+        <tr><td>Confidentialité avec API cloud</td><td><span class="pill pill-lime">Low</span></td><td><span class="pill pill-magma">High</span></td><td>Data notice + LLM on-premise Phase 3</td></tr>
+        <tr><td>Couverture API CATIA V5 R27 lacunaire</td><td><span class="pill pill-grey">Medium</span></td><td><span class="pill pill-grey">Medium</span></td><td>Doc API CATIA curée dans le corpus RAG</td></tr>
+      </table>
+    </div>
+  </section>
+
+  <!-- ════════════════════════════════════════════════════════════════ -->
+  <!-- TAB 2 — ARCHITECTURE                                               -->
+  <!-- ════════════════════════════════════════════════════════════════ -->
+  <section class="tab-panel" id="tab-arch">
+    <span class="section-label">02 _ Architecture Technique — v0.1.0 Phase 1 PoC</span>
+
+    <div class="glass-panel">
+      <h3>Carte des Modules</h3>
+      <p>Le backend FastAPI orchestre un pipeline linéaire <code>retrieve → build_prompt → call_llm</code>. Chaque module a une responsabilité unique et une interface publique étroite.</p>
+      <div class="mermaid">
+flowchart TB
+    MAIN["main.py<br/><small>app FastAPI · CORS · static</small>"]:::entry
+    ROUTES["routes.py<br/><small>endpoints + schémas Pydantic</small>"]:::core
+    RAG["rag_retriever.py<br/><small>recherche vectorielle</small>"]:::mod
+    PB["prompt_builder.py<br/><small>construction prompt</small>"]:::mod
+    LLM["llm_router.py<br/><small>routeur multi-provider</small>"]:::mod
+    ING["ingest.py<br/><small>pipeline PDF → ChromaDB</small>"]:::mod
+    CHROMA[("ChromaDB<br/>catscript_knowhow")]:::db
+    SDK["SDKs LLM<br/>anthropic·google·openai·ollama"]:::ext
+
+    MAIN --> ROUTES
+    ROUTES -->|"GET /health"| ROUTES
+    ROUTES -->|"POST /generate"| RAG
+    ROUTES --> PB
+    ROUTES --> LLM
+    RAG --> CHROMA
+    ING --> CHROMA
+    RAG -. "constantes partagées<br/>_EMBED_MODEL" .- ING
+    LLM --> SDK
+    classDef entry fill:#00A3FF18,stroke:#00A3FF,stroke-width:2px,color:#fff;
+    classDef core fill:#FF5F0022,stroke:#FF5F00,stroke-width:2px,color:#fff;
+    classDef mod fill:#ffffff06,stroke:#ffffff44,color:#fff;
+    classDef db fill:#FF5F0015,stroke:#FF5F00,color:#fff;
+    classDef ext fill:#7CFC0010,stroke:#7CFC0066,color:#dfd;
+      </div>
+      <div class="diagram-cap">Dépendances inter-modules — flèche pleine = appel, pointillé = constantes partagées</div>
+    </div>
+
+    <div class="sep-scan"></div>
+
+    <!-- FUNCTIONAL DECOMPOSITION -->
+    <h3>Décomposition Fonctionnelle</h3>
+    <div class="grid-auto">
+      <div class="glass-panel tight">
+        <span class="pill pill-blue">main.py</span>
+        <h4 style="margin-top:0.7rem;">Point d'entrée</h4>
+        <p style="font-size:0.82rem;">Instancie l'app FastAPI, configure CORS (localhost:8000 only), monte le routeur et sert le frontend statique sur <code>/static</code>.</p>
+        <pre>app: FastAPI
+<span class="kw">@app.get("/")</span>
+def serve_ui() -> FileResponse</pre>
+      </div>
+      <div class="glass-panel tight">
+        <span class="pill pill-magma">routes.py</span>
+        <h4 style="margin-top:0.7rem;">Endpoints + Schémas</h4>
+        <p style="font-size:0.82rem;">Schémas Pydantic v2 + endpoints HTTP. Orchestre le pipeline RAG+LLM par requête.</p>
+        <pre><span class="kw">@router.get</span>("/health")
+<span class="kw">@router.post</span>("/generate")
+<span class="kw">@router.get</span>("/graph")
+<span class="kw">@router.post</span>("/reverse-engineer")</pre>
+      </div>
+      <div class="glass-panel tight">
+        <span class="pill pill-blue">ingest.py</span>
+        <h4 style="margin-top:0.7rem;">Pipeline ingestion</h4>
+        <p style="font-size:0.82rem;">CLI <code>python -m backend.ingest</code>. Charge, découpe, vectorise, persiste. Idempotent par <code>chunk_id</code>.</p>
+        <pre>load_pdf(path) -> list[dict]
+chunk_pages(pages) -> list[dict]
+embed_and_store(chunks, path) -> int</pre>
+      </div>
+      <div class="glass-panel tight">
+        <span class="pill pill-blue">rag_retriever.py</span>
+        <h4 style="margin-top:0.7rem;">Recherche vectorielle</h4>
+        <p style="font-size:0.82rem;">Vectorise la requête, interroge ChromaDB. Modèle en singleton module. <code>score = 1.0 − distance</code>.</p>
+        <pre>retrieve(query, path, top_k=5)
+ -> list[{content, source_file,
+          page_number, score}]</pre>
+      </div>
+      <div class="glass-panel tight">
+        <span class="pill pill-blue">prompt_builder.py</span>
+        <h4 style="margin-top:0.7rem;">Construction prompt</h4>
+        <p style="font-size:0.82rem;">Assemble le prompt final. <code>LOW_CONFIDENCE_THRESHOLD = 0.3</code>. low_confidence si aucun chunk ou max(score)&lt;0.3.</p>
+        <pre>build_prompt(chunks, query, type)
+ -> (prompt_text, low_confidence)</pre>
+      </div>
+      <div class="glass-panel tight">
+        <span class="pill pill-magma">llm_router.py</span>
+        <h4 style="margin-top:0.7rem;">Routeur multi-provider</h4>
+        <p style="font-size:0.82rem;">Abstraction provider-agnostique. Import lazy des SDKs. <code>ValueError</code> si provider inconnu.</p>
+        <pre>call_llm(provider, model,
+         api_key, prompt) -> str</pre>
+      </div>
+    </div>
+
+    <div class="sep-scan"></div>
+
+    <!-- SEQUENCE DIAGRAM -->
+    <h3>Séquence — Requête → /generate → LLM</h3>
+    <div class="glass-panel">
+      <div class="mermaid">
+sequenceDiagram
+    actor Designer
+    participant UI as Frontend (HTML/JS)
+    participant API as FastAPI /generate
+    participant RAG as rag_retriever
+    participant PB as prompt_builder
+    participant LLM as llm_router
+    participant Chroma as ChromaDB
+    Designer->>UI: Saisit requête + type + config LLM
+    UI->>API: POST /generate {query, script_type, top_k, provider, model, api_key}
+    API->>RAG: retrieve(query, chroma_path, top_k)
+    RAG->>Chroma: query_embeddings(n_results=top_k)
+    Chroma-->>RAG: documents[], metadatas[], distances[]
+    RAG-->>API: list[{content, source_file, page, score}]
+    API->>PB: build_prompt(chunks, query, type)
+    PB-->>API: (prompt_text, low_confidence)
+    API->>LLM: call_llm(provider, model, api_key, prompt)
+    LLM-->>API: script: str
+    API-->>UI: {script, sources, confidence}
+    UI-->>Designer: Affiche script + sources + confiance
+      </div>
+      <div class="diagram-cap">§3.1 — Flux complet d'une génération</div>
+    </div>
+
+    <div class="sep-scan"></div>
+
+    <!-- INGESTION FLOW -->
+    <h3>Flux d'Ingestion PDF → ChromaDB</h3>
+    <div class="glass-panel">
+      <div class="mermaid">
+flowchart TD
+    A[("📁 data/pdf_docs/")] --> B
+    subgraph LP["load_pdf() — T-101"]
+        B1["pdfplumber : extract_text/page"] --> B2{"Texte vide ?"}
+        B2 -- Oui --> B3["fitz fallback : get_text"]
+        B2 -- Non --> B4["page dict"]
+        B3 --> B4
+    end
+    B[load_pdf] --> LP --> C
+    subgraph CP["chunk_pages() — T-102"]
+        C1["RecursiveCharacterTextSplitter<br/>size=500 · overlap=50"] --> C2["chunk dict (UUID4)"]
+    end
+    C[chunk_pages] --> CP --> D
+    subgraph ES["embed_and_store() — T-103"]
+        D1["get existing IDs"] --> D2{"chunk_id présent ?"}
+        D2 -- Non --> D3["SentenceTransformer encode"] --> D4["collection.add"]
+        D2 -- Oui --> D5["Skip silencieux"]
+    end
+    D[embed_and_store] --> ES --> E[("ChromaDB · catscript_knowhow")]
+    classDef def fill:#ffffff06,stroke:#ffffff33,color:#fff;
+      </div>
+      <div class="diagram-cap">§3.2 — Pipeline idempotent : les chunks déjà présents sont ignorés</div>
+    </div>
+
+    <div class="sep-scan"></div>
+
+    <!-- SCRIPT ORGANIZATION / GENERATION ROUTES -->
+    <h3>Organisation des Scripts Générés</h3>
+    <p style="opacity:0.7;margin-bottom:1rem;">FastCAD produit cinq familles de scripts CATIA V5, organisées par module fonctionnel et type de sortie.</p>
+    <div class="glass-panel">
+      <div class="mermaid">
+flowchart LR
+    ROOT["FastCAD Engine"]:::core
+    ROOT --> M1["GÉNÉRATION"]:::g
+    ROOT --> M2["RÉTRO-INGÉNIERIE"]:::g
+    ROOT --> M3["MISE EN PLAN"]:::g
+    M1 --> S1["CATScript / VBA<br/><small>Pad·Pocket·Shaft·Hole<br/>Fillet·Pattern·Mirror</small>"]:::s
+    M1 --> S2["EKL<br/><small>Rules·Checks·Reactions<br/>Design Table</small>"]:::s
+    M1 --> S3["EHI / EHA<br/><small>BundleSegment·RoutingPoint<br/>Connector·Protection</small>"]:::s
+    M2 --> S4["CATPart/CATProduct/STEP<br/>→ CATScript reproductible"]:::s
+    M2 --> S6["DMU Routing<br/>STEP/CATProduct → EHI/EHA<br/><small>bounding box + waypoints</small>"]:::s
+    M3 --> S5["CATDrawing<br/><small>3 vues ISO + cartouche<br/>+ cotation auto</small>"]:::s
+    classDef core fill:#FF5F0022,stroke:#FF5F00,stroke-width:2px,color:#fff;
+    classDef g fill:#00A3FF18,stroke:#00A3FF,stroke-width:1.5px,color:#fff;
+    classDef s fill:#ffffff06,stroke:#ffffff33,color:#fff;
+      </div>
+      <div class="diagram-cap">Organisation des sorties par module — 3 modules, 5 familles de scripts</div>
+    </div>
+
+    <div class="sep-scan"></div>
+
+    <!-- CONFIDENCE LOGIC + DATA MODEL -->
+    <div class="grid-2">
+      <div class="glass-panel">
+        <h4>Logique de Confiance</h4>
+        <div class="mermaid">
+flowchart TB
+    S["max(score) des chunks"]:::s --> C1{"low_confidence<br/>flagué ?"}
+    C1 -- Oui --> L["confidence = LOW"]:::low
+    C1 -- Non --> C2{"max_score ≥ 0.7 ?"}
+    C2 -- Oui --> H["confidence = HIGH"]:::high
+    C2 -- Non --> M["confidence = MEDIUM"]:::med
+    classDef s fill:#ffffff06,stroke:#ffffff33,color:#fff;
+    classDef low fill:#FF5F0022,stroke:#FF5F00,color:#fff;
+    classDef med fill:#FFD70015,stroke:#FFD700,color:#fff;
+    classDef high fill:#7CFC0015,stroke:#7CFC00,color:#fff;
+        </div>
+      </div>
+      <div class="glass-panel">
+        <h4>Modèle de Données — Flux des schémas</h4>
+        <div class="mermaid">
+flowchart TB
+    PG["page dict<br/>{page_number, text, source_file}"]:::s --> CK["chunk interne<br/>{chunk_id, source_file,<br/>page_number, content}"]:::s
+    CK --> DB[("ChromaDB chunk<br/>id·embedding(384)<br/>document·metadata")]:::db
+    DB --> RC["chunk récupéré<br/>{content, source_file,<br/>page_number, score}"]:::s
+    RC --> RESP["GenerationResponse<br/>{script, sources[], confidence}"]:::core
+    classDef s fill:#ffffff06,stroke:#ffffff33,color:#fff;
+    classDef db fill:#FF5F0015,stroke:#FF5F00,color:#fff;
+    classDef core fill:#00A3FF18,stroke:#00A3FF,color:#fff;
+        </div>
+      </div>
+    </div>
+
+    <div class="sep-scan"></div>
+
+    <h3>Schémas Pydantic & Enums</h3>
+    <div class="grid-2">
+      <div class="glass-panel tight">
+        <h4>Enums</h4>
+        <pre><span class="kw">ScriptType</span>: catscript | ekl | ehi_eha
+<span class="kw">Provider</span>:   anthropic | google
+            | openai | ollama
+<span class="kw">ConfidenceLevel</span>:
+  high   = max(score) ≥ 0.7
+  medium = 0.3 ≤ max(score) &lt; 0.7
+  low    = max(score) &lt; 0.3 | ∅</pre>
+      </div>
+      <div class="glass-panel tight">
+        <h4>GenerationRequest / Response</h4>
+        <pre><span class="cmt"># Request</span>
+query:       str   <span class="cmt"># min_length=1</span>
+script_type: ScriptType
+top_k:       int   <span class="cmt"># 1..20, def 5</span>
+provider:    Provider
+model:       str
+api_key:     str   <span class="cmt"># ignoré si ollama</span>
+<span class="cmt"># Response</span>
+script: str · sources: list[SourceRef]
+confidence: ConfidenceLevel</pre>
+      </div>
+    </div>
+
+    <div class="sep-scan"></div>
+
+    <h3>Stack — Versions Épinglées</h3>
+    <div class="glass-panel tight">
+      <table>
+        <tr><th>Couche</th><th>Outil</th><th>Version</th><th>Rôle</th></tr>
+        <tr><td>Serveur HTTP</td><td>FastAPI</td><td>≥ 0.111.0</td><td>API REST, routage, validation, CORS</td></tr>
+        <tr><td>Serveur ASGI</td><td>Uvicorn</td><td>≥ 0.29.0</td><td>Serveur ASGI</td></tr>
+        <tr><td>Extraction PDF</td><td>pdfplumber / PyMuPDF</td><td>≥ 0.11 / ≥ 1.24</td><td>Texte page/page + fallback</td></tr>
+        <tr><td>Découpage</td><td>langchain-text-splitters</td><td>≥ 0.2.0</td><td>chunks 500 / overlap 50</td></tr>
+        <tr><td>Embeddings</td><td>sentence-transformers</td><td>≥ 3.0.0</td><td>all-MiniLM-L6-v2 (dim 384)</td></tr>
+        <tr><td>Base vectorielle</td><td>ChromaDB</td><td>≥ 0.5.0</td><td>Similarité + persistance locale</td></tr>
+        <tr><td>Validation</td><td>Pydantic</td><td>≥ 2.7.0</td><td>Schémas req/resp, enums stricts</td></tr>
+        <tr><td>LLM SDKs</td><td>anthropic / google-generativeai / openai / ollama</td><td>—</td><td>4 providers, import lazy</td></tr>
+      </table>
+    </div>
+  </section>
+
+  <!-- ════════════════════════════════════════════════════════════════ -->
+  <!-- TAB 3 — KNOWLEDGE VECTOR GRAPH                                     -->
+  <!-- ════════════════════════════════════════════════════════════════ -->
+  <section class="tab-panel" id="tab-kvg">
+    <span class="section-label">03 _ Knowledge Vector Graph — endpoint GET /graph</span>
+
+    <div class="glass-panel">
+      <h3>Graphe de Connaissances Vectoriel</h3>
+      <p>Chaque <strong>nœud</strong> est un chunk du corpus (document PDF ingéré). Une <strong>arête</strong> relie deux chunks dont la <strong>similarité cosinus ≥ 0.65</strong> (top-5 voisins par nœud, dédupliqués). La taille du nœud croît avec son degré ; la couleur encode le fichier source ; un nœud <span style="color:#FFD700;">doré pulsant</span> a été ingéré il y a moins de 7 jours. Rendu via simulation de forces <code>d3.forceSimulation</code> — identique à la modale <em>Références techniques</em> du frontend.</p>
+    </div>
+
+    <div class="grid-3" style="margin:1.5rem 0;">
+      <div class="glass-panel metric"><div class="num">182</div><div class="lbl">Chunks validés (nœuds)</div></div>
+      <div class="glass-panel metric"><div class="num blue">20/20</div><div class="lbl">Validation RAG</div></div>
+      <div class="glass-panel metric"><div class="num">0.558</div><div class="lbl">Score cosinus moyen</div></div>
+    </div>
+
+    <!-- LIVE D3 GRAPH -->
+    <div id="kvg-container">
+      <svg id="kvg-svg"></svg>
+      <div class="kvg-info" id="kvg-info">
+        <div class="src" id="kvg-info-src">source.pdf</div>
+        <div class="meta" id="kvg-info-meta">Page 1</div>
+        <div class="body" id="kvg-info-body"></div>
+      </div>
+      <div class="kvg-legend">
+        <div class="lt">Légende — source_file</div>
+        <div id="kvg-legend-items"></div>
+      </div>
+      <div class="kvg-controls">⊕ molette = zoom · glisser = déplacer nœud · clic = détail</div>
+    </div>
+    <div class="kvg-tooltip" id="kvg-tooltip"></div>
+    <div class="note">Vue représentative générée côté client (90 nœuds, clusters par source) reproduisant la topologie réelle du corpus de 182 chunks. En production, <code>GET /graph</code> renvoie les nœuds/arêtes calculés depuis les embeddings ChromaDB en direct.</div>
+
+    <div class="sep-scan"></div>
+
+    <!-- ALGORITHM -->
+    <h3>Algorithme de Construction</h3>
+    <div class="grid-2">
+      <div class="glass-panel">
+        <div class="mermaid">
+flowchart TB
+    A["get_all_chunks(CHROMA_PATH)"]:::s --> B{"chunks ∅ ?"}
+    B -- Oui --> Z["nodes=[], edges=[]"]:::low
+    B -- Non --> C["embeddings → np.array"]:::s
+    C --> D["Normalisation L2<br/>(cosine via dot product)"]:::s
+    D --> E["sim = E · Eᵀ<br/>matrice N×N"]:::core
+    E --> F["Par nœud i :<br/>top-5 voisins j (sim desc)"]:::s
+    F --> G{"sim ≥ 0.65<br/>et i &lt; j ?"}
+    G -- Oui --> H["edge {source,target,weight}"]:::high
+    G -- Non --> I["ignorer"]:::low
+    classDef s fill:#ffffff06,stroke:#ffffff33,color:#fff;
+    classDef core fill:#FF5F0022,stroke:#FF5F00,stroke-width:2px,color:#fff;
+    classDef high fill:#7CFC0015,stroke:#7CFC00,color:#fff;
+    classDef low fill:#ffffff04,stroke:#ffffff22,color:#aaa;
+        </div>
+        <div class="diagram-cap">routes.py — knowledge_graph()</div>
+      </div>
+      <div class="glass-panel">
+        <h4>Paramètres & Rendu</h4>
+        <table>
+          <tr><th>Paramètre</th><th>Valeur</th></tr>
+          <tr><td>Seuil de similarité</td><td><code>THRESHOLD = 0.65</code></td></tr>
+          <tr><td>Voisins par nœud</td><td><code>TOP_K = 5</code></td></tr>
+          <tr><td>Dim. embedding</td><td>384 (all-MiniLM-L6-v2)</td></tr>
+          <tr><td>Taille nœud</td><td><code>5 + min(deg×1.5, 10)</code></td></tr>
+          <tr><td>Épaisseur arête</td><td><code>max(0.5, weight×2)</code></td></tr>
+          <tr><td>Couleur</td><td>10 couleurs cyclées par source</td></tr>
+          <tr><td>Nœud doré</td><td>ingéré &lt; 7 jours (FRESH_MS)</td></tr>
+          <tr><td>Forces D3</td><td>link 100 · charge −180 · collide</td></tr>
+        </table>
+        <pre><span class="cmt"># label tronqué côté backend</span>
+label = content[:70] + "…"
+<span class="cmt"># payload node</span>
+{id, label, source, page, ingested_at}</pre>
+      </div>
+    </div>
+
+    <div class="sep-scan"></div>
+
+    <div class="glass-panel">
+      <h4>Interprétation pour l'architecte</h4>
+      <ul class="clean">
+        <li><strong>Clusters denses</strong> = thématiques cohérentes du savoir-faire (ex. opérations solides CATScript) — un cluster isolé indique un domaine documentaire bien délimité.</li>
+        <li><strong>Nœuds de fort degré (hubs)</strong> = chunks transversaux récupérés pour de nombreuses requêtes ; candidats prioritaires à la curation qualité.</li>
+        <li><strong>Ponts inter-clusters</strong> = chunks reliant deux domaines (ex. paramètres pilotés ↔ EKL) ; vecteurs de généralisation du RAG.</li>
+        <li><strong>Nœuds orphelins</strong> (degré 0, &lt; 0.65 avec tous) = savoir-faire unique ou bruit d'extraction PDF à inspecter.</li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- ════════════════════════════════════════════════════════════════ -->
+  <!-- TAB 4 — USE CASES CATALOG                                          -->
+  <!-- ════════════════════════════════════════════════════════════════ -->
+  <section class="tab-panel" id="tab-uc">
+    <span class="section-label">04 _ Use Case Catalog — 25 UC + 2 intégrations</span>
+
+    <div class="glass-panel">
+      <h3>Catalogue de Cas d'Usage</h3>
+      <p>25 cas d'usage validés sur le corpus de 182 chunks, répartis en 5 domaines, plus 2 exemples d'intégration complexes couvrant l'ensemble des UC en une pièce. <strong>Démarche :</strong> ouvrir <code>localhost:8000</code> → coller l'opération dans <code>O1</code> → vérifier le type détecté → générer.</p>
+    </div>
+
+    <!-- DOMAIN DISTRIBUTION -->
+    <div class="grid-2" style="margin:1.5rem 0;">
+      <div class="glass-panel">
+        <h4>Répartition par domaine</h4>
+        <div class="mermaid">
+pie showData
+    "CATScript (UC 01-10)" : 10
+    "EKL (UC 11-15)" : 5
+    "EHI/EHA (UC 16-20)" : 5
+    "Rétro-ingénierie (21-22)" : 2
+    "Routage DMU (23)" : 1
+    "Mise en plan (24-25)" : 2
+        </div>
+      </div>
+      <div class="glass-panel">
+        <h4>Couverture des intégrations</h4>
+        <div class="mermaid">
+flowchart TB
+    I1["INTEG-01<br/>Corps de pompe centrifuge"]:::core --> U1["UC-01·02·03·04·05<br/>07·08·09·10"]:::s
+    I2["INTEG-02<br/>Harnais baie avionique"]:::core2 --> U2["UC-16·17·18·19·20"]:::s
+    classDef core fill:#FF5F0022,stroke:#FF5F00,stroke-width:2px,color:#fff;
+    classDef core2 fill:#00A3FF18,stroke:#00A3FF,stroke-width:2px,color:#fff;
+    classDef s fill:#ffffff06,stroke:#ffffff33,color:#fff;
+        </div>
+      </div>
+    </div>
+
+    <!-- CATSCRIPT UCs -->
+    <h3>CATScript — Pièces mécaniques</h3>
+    <div class="grid-auto">
+      <div class="uc-card"><div class="uc-id">UC-01</div><div class="uc-title">Platine de fixation</div><div class="uc-op">Platine 200×120 mm, ép. 8 mm, 6 trous Ø10 en grille 3×2, espacés 60/80 mm.</div></div>
+      <div class="uc-card"><div class="uc-id">UC-02</div><div class="uc-title">Support équerre nervuré</div><div class="uc-op">Semelle 160×90 mm ép. 6 mm + nervure trapézoïdale 70 mm symétrique, 4 trous Ø9.</div></div>
+      <div class="uc-card"><div class="uc-id">UC-03</div><div class="uc-title">Arbre de transmission</div><div class="uc-op">Ø30×80 + épaulement Ø20×70, gorge d'arrêt Ø15 prof. 3 mm pour circlip.</div></div>
+      <div class="uc-card"><div class="uc-id">UC-04</div><div class="uc-title">Boîtier électronique évidé</div><div class="uc-op">120×80×60 mm, parois 2,5 mm, ouvert dessus, découpe 80×40 face avant.</div></div>
+      <div class="uc-card"><div class="uc-id">UC-05</div><div class="uc-title">Bague joint torique</div><div class="uc-op">Ø ext 60 / alésage 40 / H 25 mm, gorge annulaire 2×3 mm + chanfreins 1×45°.</div></div>
+      <div class="uc-card"><div class="uc-id">UC-06</div><div class="uc-title">Profilé en U (balayage)</div><div class="uc-op">Section U 40×30 mm, ailes 3 mm, balayé sur 300 mm rectilignes.</div></div>
+      <div class="uc-card"><div class="uc-id">UC-07</div><div class="uc-title">Disque couronne perçages</div><div class="uc-op">Disque Ø100×10 mm, 8 trous Ø8 sur cercle Ø80, pas 45°.</div></div>
+      <div class="uc-card"><div class="uc-id">UC-08</div><div class="uc-title">Pièce symétrique pompe</div><div class="uc-op">Bloc 80×50×12 + poche 40×30 + 2 trous Ø7, dupliqué en miroir.</div></div>
+      <div class="uc-card"><div class="uc-id">UC-09</div><div class="uc-title">Bloc fileté chanfreiné</div><div class="uc-op">60×40×30, taraudage M8 prof. 16, avant-trou Ø6,8 borgne, chanfreins 1×45°.</div></div>
+      <div class="uc-card"><div class="uc-id">UC-10</div><div class="uc-title">Bride DN50</div><div class="uc-op">Collet Ø90×15, corps Ø60×30, alésage Ø52, 4 trous Ø14 sur cercle Ø75.</div></div>
+    </div>
+
+    <div class="sep-scan"></div>
+
+    <!-- EKL UCs -->
+    <h3>EKL — Règles de conception</h3>
+    <div class="grid-auto">
+      <div class="uc-card"><div class="uc-id">UC-11</div><div class="uc-title">Auditeur conformité aéro</div><div class="uc-op">Vérifie ép. min 3 mm, congé min 1,5 mm, perçage 4–20 mm, rapport + bilan global.</div></div>
+      <div class="uc-card"><div class="uc-id">UC-12</div><div class="uc-title">Paramétrage Design Table</div><div class="uc-op">Lit un Excel de configs, applique L/l/H/Ø de la ligne active, message de confirmation.</div></div>
+      <div class="uc-card"><div class="uc-id">UC-13</div><div class="uc-title">Vérificateur multi-critères</div><div class="uc-op">Parois, congés, ratio L/ép. (flambement), espacement trous ≥ 3×Ø, alertes détaillées.</div></div>
+      <div class="uc-card"><div class="uc-id">UC-14</div><div class="uc-title">Adaptation par matière</div><div class="uc-op">Détecte la matière (2024 / 316L / TA6V) et ajuste épaisseurs et congés.</div></div>
+      <div class="uc-card"><div class="uc-id">UC-15</div><div class="uc-title">Contrôle de tous les pads</div><div class="uc-op">Parcourt toutes les extrusions, signale ép. &lt; 3 mm avec nom feature et valeur.</div></div>
+    </div>
+
+    <div class="sep-scan"></div>
+
+    <!-- EHI UCs -->
+    <h3>EHI/EHA — Harnais électriques</h3>
+    <div class="grid-auto">
+      <div class="uc-card"><div class="uc-id">UC-16</div><div class="uc-title">Harnais linéaire + supports</div><div class="uc-op">Faisceau rectiligne 500 mm Ø12, gaine thermo, clips à 100 et 400 mm.</div></div>
+      <div class="uc-card"><div class="uc-id">UC-17</div><div class="uc-title">Harnais en Y</div><div class="uc-op">Tronc 300 mm Ø16 blindé → 2 branches 200 mm Ø10 gainées, bifurcation en bout.</div></div>
+      <div class="uc-card"><div class="uc-id">UC-18</div><div class="uc-title">Harnais multi-connecteurs</div><div class="uc-op">Tronc Ø20 blindé, branche Ø10 + D38999 37b mâle, branche Ø8 ondulé + femelle.</div></div>
+      <div class="uc-card"><div class="uc-id">UC-19</div><div class="uc-title">Câblage en étoile</div><div class="uc-op">Nœud central, 4 branches 200 mm à 90°, Ø12 ondulé, n° de câble par branche.</div></div>
+      <div class="uc-card"><div class="uc-id">UC-20</div><div class="uc-title">Fils référencés + signaux</div><div class="uc-op">Faisceau Ø16, 4 fils : 28VDC AWG22, ARINC429 AWG24, GND, RS-422 documentés.</div></div>
+    </div>
+
+    <div class="sep-scan"></div>
+
+    <!-- RETRO / DMU / DRAWING UCs -->
+    <h3>Rétro-ingénierie · Routage DMU · Mise en plan</h3>
+    <div class="grid-auto">
+      <div class="uc-card" style="border-top-color:var(--color-electric-blue);"><div class="uc-id">UC-21</div><div class="uc-title">Rétro CATPart</div><div class="uc-op">Extrait l'arbre de features + paramètres → CATScript complet reproduisant la pièce.</div></div>
+      <div class="uc-card" style="border-top-color:var(--color-electric-blue);"><div class="uc-id">UC-22</div><div class="uc-title">Rétro CATProduct</div><div class="uc-op">Extrait composants + contraintes → CATScript instanciant l'assemblage.</div></div>
+      <div class="uc-card" style="border-top-color:var(--color-lime);"><div class="uc-id">UC-23</div><div class="uc-title">Routage DMU</div><div class="uc-op">STEP/CATProduct → bounding box + waypoints offset 20 mm → EHI/EHA ElecBundleSegment.</div></div>
+      <div class="uc-card" style="border-top-color:var(--color-magma);"><div class="uc-id">UC-24</div><div class="uc-title">Mise en plan CATPart</div><div class="uc-op">CATDrawing ISO, 3 vues 1:1, cotation auto, cartouche renseigné.</div></div>
+      <div class="uc-card" style="border-top-color:var(--color-magma);"><div class="uc-id">UC-25</div><div class="uc-title">Mise en plan CATProduct</div><div class="uc-op">CATDrawing assemblage, vues d'ensemble, échelle adaptée auto.</div></div>
+    </div>
+
+    <div class="sep-scan"></div>
+
+    <!-- INTEG CASES -->
+    <h2 style="margin-top:1rem;">Exemples d'Intégration — Validation Complète</h2>
+    <p class="note">Le catalogue source définit <strong>2 cas d'intégration</strong> (INTEG-01, INTEG-02) couvrant l'ensemble des 20 UC de base — pas de troisième INTEG défini dans <code>use_case_catalog.md</code>.</p>
+
+    <!-- INTEG-01 -->
+    <div class="glass-panel" style="border-top:2px solid var(--color-magma);margin-bottom:1.5rem;">
+      <span class="pill pill-magma">INTEG-01 · CATScript</span>
+      <h3 style="margin-top:0.8rem;">Corps de pompe centrifuge (mécanique)</h3>
+      <p style="opacity:0.65;">Couvre UC-01·02·03·04·05·07·08·09·10 — corps de pompe aluminium pilotable en famille DN40/DN50/DN65.</p>
+      <div class="mermaid">
+flowchart TB
+    P["Corps pompe centrifuge AL"]:::core
+    P --> V["Volute / carter<br/><small>cyl. évidé Ø180×160 · parois 6 mm<br/>alésage arbre Ø80 traversant</small>"]:::s
+    P --> F["Flasque fermeture<br/><small>annulaire Ø180/Ø120×12<br/>8 trous Ø9 @45° sur Ø155</small>"]:::s
+    P --> TA["Tubulure aspiration<br/><small>Ø60/Ø44×80 + bride carrée<br/>100×100 · 4 trous Ø11</small>"]:::s
+    P --> TR["Tubulure refoulement<br/><small>symétrie /plan médian H<br/>bride ronde Ø90 · 4 trous Ø11</small>"]:::s
+    P --> N["4 nervures trapéz.<br/><small>8×30 mm en croix @90°</small>"]:::s
+    P --> FX["4 pattes fixation<br/><small>50×40×10 @90° · trou Ø13<br/>+ M8 prof.20 · chanfreins 1,5×45°</small>"]:::s
+    P --> J["Gorge joint plat<br/><small>4×3 mm sur portée flasque</small>"]:::s
+    P --> PA["Paramètres pilotés<br/><small>Ø corps·H·ép·Ø alésage<br/>→ famille DN40/50/65</small>"]:::param
+    classDef core fill:#FF5F0022,stroke:#FF5F00,stroke-width:2px,color:#fff;
+    classDef s fill:#ffffff06,stroke:#ffffff33,color:#fff;
+    classDef param fill:#00A3FF18,stroke:#00A3FF,color:#fff;
+      </div>
+      <div class="diagram-cap">Décomposition fonctionnelle de la pièce — 8 sous-ensembles enchaînés sans conflit</div>
+    </div>
+
+    <!-- INTEG-02 -->
+    <div class="glass-panel" style="border-top:2px solid var(--color-electric-blue);">
+      <span class="pill pill-blue">INTEG-02 · EHI/EHA</span>
+      <h3 style="margin-top:0.8rem;">Harnais de baie avionique (câblage)</h3>
+      <p style="opacity:0.65;">Couvre UC-16·17·18·19·20 — relie 5 équipements : IRS · FMS · PFD-G · PFD-D · DAR.</p>
+      <div class="mermaid">
+flowchart LR
+    DIST["⚡ Pupitre distribution<br/>(0,0,0)"]:::core
+    DIST -->|"tronc 600 mm Ø25 blindé<br/>clips P25 @150·350·550"| NODE{"Nœud étoile<br/>5 branches"}:::node
+    NODE -->|"350 mm Ø16 blindée"| IRS["IRS<br/><small>D38999/26WJ55SN 55b mâle<br/>4×28VDC AWG20 · 2 GND · 6 ARINC429</small>"]:::eq
+    NODE -->|"400 mm Ø16 blindée"| FMS["FMS<br/><small>D38999/26WB35SN 37b<br/>2×28VDC · 1 GND · 4 ARINC429 · 2 RS-422</small>"]:::eq
+    NODE -->|"280 mm Ø12 thermo"| PFDL["PFD gauche<br/><small>D-Sub 25b mâle<br/>2×28VDC · 1 GND · 3 ARINC818</small>"]:::eq
+    NODE -->|"280 mm Ø12 thermo<br/>(symétrie plan axial)"| PFDR["PFD droit<br/><small>config = PFD-G renommée</small>"]:::eq
+    NODE -->|"500 mm Ø10 ondulé"| DAR["DAR<br/><small>MIL-C-26482-19-35 19b<br/>1×28VDC · 1 GND · 2 ARINC717 · 1 discret</small>"]:::eq
+    IRS -.->|"@200 mm dérivation<br/>120 mm Ø6 ondulé"| TEMP["Capteur température<br/><small>5VDC AWG28 · signal 0-5V AWG28</small>"]:::sub
+    DIST -.->|"bout tronc"| GND["Masse Faston 6,3<br/><small>AWG12 vert-jaune 100 mm</small>"]:::gnd
+    classDef core fill:#FF5F0022,stroke:#FF5F00,stroke-width:2px,color:#fff;
+    classDef node fill:#00A3FF22,stroke:#00A3FF,stroke-width:2px,color:#fff;
+    classDef eq fill:#ffffff06,stroke:#ffffff44,color:#fff;
+    classDef sub fill:#7CFC0010,stroke:#7CFC0066,color:#dfd;
+    classDef gnd fill:#FFD70012,stroke:#FFD700,color:#fff;
+      </div>
+      <div class="diagram-cap">Topologie du harnais — tronc + nœud étoile 5 branches + sous-bifurcation + masse</div>
+      <table style="margin-top:1rem;">
+        <tr><th>Conformité</th><th>Règle</th></tr>
+        <tr><td>Rayon de courbure</td><td>≥ 5 × diamètre par segment</td></tr>
+        <tr><td>Espacement supports</td><td>≤ 400 mm sur le tronc</td></tr>
+        <tr><td>Numérotation câbles</td><td>WH-IRS-001 · WH-FMS-001 · WH-PFD-L-001 · WH-PFD-R-001 · WH-DAR-001</td></tr>
+      </table>
+    </div>
+
+    <div class="sep-scan"></div>
+
+    <h3>Synthèse — 25 Use Cases</h3>
+    <div class="glass-panel tight">
+      <table>
+        <tr><th>UC</th><th>Type</th><th>Domaine</th><th>UC</th><th>Type</th><th>Domaine</th></tr>
+        <tr><td>01</td><td>CATScript</td><td>Platine fixation</td><td>14</td><td>EKL</td><td>Adaptation matière</td></tr>
+        <tr><td>02</td><td>CATScript</td><td>Support équerre</td><td>15</td><td>EKL</td><td>Contrôle pads</td></tr>
+        <tr><td>03</td><td>CATScript</td><td>Arbre transmission</td><td>16</td><td>EHI</td><td>Harnais linéaire</td></tr>
+        <tr><td>04</td><td>CATScript</td><td>Boîtier évidé</td><td>17</td><td>EHI</td><td>Harnais en Y</td></tr>
+        <tr><td>05</td><td>CATScript</td><td>Bague joint torique</td><td>18</td><td>EHI</td><td>Connecteurs</td></tr>
+        <tr><td>06</td><td>CATScript</td><td>Profilé en U</td><td>19</td><td>EHI</td><td>Câblage étoile</td></tr>
+        <tr><td>07</td><td>CATScript</td><td>Disque couronne</td><td>20</td><td>EHI</td><td>Fils référencés</td></tr>
+        <tr><td>08</td><td>CATScript</td><td>Pièce symétrique</td><td>21</td><td>Rétro</td><td>CATPart → script</td></tr>
+        <tr><td>09</td><td>CATScript</td><td>Bloc fileté</td><td>22</td><td>Rétro</td><td>CATProduct → script</td></tr>
+        <tr><td>10</td><td>CATScript</td><td>Bride DN50</td><td>23</td><td>Routage DMU</td><td>STEP/CATProduct</td></tr>
+        <tr><td>11</td><td>EKL</td><td>Auditeur conformité</td><td>24</td><td>Mise en plan</td><td>CATPart → CATDrawing</td></tr>
+        <tr><td>12</td><td>EKL</td><td>Design Table</td><td>25</td><td>Mise en plan</td><td>CATProduct → CATDrawing</td></tr>
+        <tr><td>13</td><td>EKL</td><td>Vérif multi-critères</td><td></td><td></td><td></td></tr>
+      </table>
+    </div>
+  </section>
+
+  <!-- ════════════════════════════════════════════════════════════════ -->
+  <!-- TAB 5 — GLOSSARY                                                   -->
+  <!-- ════════════════════════════════════════════════════════════════ -->
+  <section class="tab-panel" id="tab-gloss">
+    <span class="section-label">05 _ Glossaire — Termes reconnus par FastCAD (champ O1)</span>
+
+    <div class="glass-panel">
+      <h3>Vocabulaire d'Entrée</h3>
+      <p>Termes qu'un ingénieur peut employer dans le champ <code>O1 — Opération CATIA</code>. Chaque concept liste ses <strong>synonymes acceptés</strong> et ses <strong>paramètres</strong>. Plus la description est dimensionnée (Ø, longueur, ép., nombre), plus le script est fidèle.</p>
+    </div>
+
+    <!-- Reference planes diagram -->
+    <div class="grid-2" style="margin:1.5rem 0;">
+      <div class="glass-panel">
+        <h4>Plans de référence standards</h4>
+        <div class="mermaid">
+flowchart TB
+    XY["Plan XY<br/><small>horizontal · vue de dessus</small>"]:::b
+    YZ["Plan YZ<br/><small>frontal · vue de face</small>"]:::m
+    ZX["Plan ZX<br/><small>profil · vue de côté</small>"]:::l
+    classDef b fill:#00A3FF18,stroke:#00A3FF,color:#fff;
+    classDef m fill:#FF5F0018,stroke:#FF5F00,color:#fff;
+    classDef l fill:#7CFC0015,stroke:#7CFC00,color:#fff;
+        </div>
+        <p style="font-size:0.78rem;opacity:0.6;text-align:center;">Unités : millimètres (mm) · degrés (°)</p>
+      </div>
+      <div class="glass-panel">
+        <h4>Domaines couverts</h4>
+        <div class="mermaid">
+mindmap
+  root((FastCAD<br/>glossaire))
+    CATScript
+      Solides
+      Répétitions
+      Habillage
+    EKL
+      Règles
+      Checks
+      Design Table
+    EHI
+      Faisceaux
+      Connecteurs
+      Protections
+    Rétro-ing.
+      STEP/CATPart
+      CATProduct
+    Mise en plan
+      CATDrawing
+      Vues ISO
+        </div>
+      </div>
+    </div>
+
+    <!-- CATSCRIPT GLOSSARY -->
+    <h3>CATScript — Opérations sur pièces solides</h3>
+    <div class="glass-panel">
+      <div class="gloss-item"><div class="term">Extrusion</div><div class="syn">extrusion · pad · bossage · élévation · relief · épaississement</div><div class="desc">Crée un volume solide en poussant un profil 2D sur une hauteur. <em>Param :</em> hauteur (mm), plan de départ, symétrique.</div><div class="ex">« une extrusion rectangulaire de 80×50 mm, hauteur 20 mm »</div></div>
+      <div class="gloss-item"><div class="term">Enlèvement de matière / Poche</div><div class="syn">poche · pocket · découpe · évidement rectangulaire · rainure · creux · logement</div><div class="desc">Soustrait un volume en creusant selon un profil 2D. <em>Param :</em> profondeur, profil, traversant/borgne.</div><div class="ex">« une poche rectangulaire de 40×20 mm, profondeur 10 mm »</div></div>
+      <div class="gloss-item"><div class="term">Révolution</div><div class="syn">révolution · corps de révolution · tournage · axisymétrique · arbre · bague · moyeu · bride</div><div class="desc">Fait tourner un profil 2D autour d'un axe. <em>Param :</em> angle (≤360°), profil demi-section, axe.</div><div class="ex">« un corps de révolution 360°, Ø ext 60, alésage 40 »</div></div>
+      <div class="gloss-item"><div class="term">Gorge de révolution</div><div class="syn">gorge · rainure annulaire · saignée · lamage annulaire</div><div class="desc">Enlève de la matière par révolution (joints, circlips). <em>Param :</em> largeur, profondeur, position axiale.</div><div class="ex">« une gorge annulaire 3 mm large × 2 mm profond pour joint torique »</div></div>
+      <div class="gloss-item"><div class="term">Coque / Évidement</div><div class="syn">coque · shell · paroi mince · boîtier creux · cavité intérieure</div><div class="desc">Vide un solide en conservant une épaisseur de paroi uniforme. <em>Param :</em> épaisseur, face(s) ouverte(s).</div><div class="ex">« vider le boîtier, parois 2 mm, ouverture dessus »</div></div>
+      <div class="gloss-item"><div class="term">Balayage / Profilé</div><div class="syn">balayage · sweep · profilé · nervure sur courbe · tuyau · cornière · U / L / T</div><div class="desc">Déplace un profil 2D le long d'une courbe guide 3D. <em>Param :</em> profil de section, courbe guide.</div><div class="ex">« un profilé en U 40×30 mm sur 300 mm »</div></div>
+      <div class="gloss-item"><div class="term">Perçage</div><div class="syn">perçage · trou · alésage · trou borgne · traversant · trou de passage · de fixation</div><div class="desc">Crée un trou cylindrique. <em>Param :</em> diamètre, profondeur, position X/Y.</div><div class="ex">« un trou de passage Ø9 traversant à 15 mm des bords »</div></div>
+      <div class="gloss-item"><div class="term">Répétition circulaire</div><div class="syn">répétition circulaire · couronne de trous · motif circulaire · pas angulaire</div><div class="desc">Répète une feature autour d'un axe à intervalles angulaires. <em>Param :</em> occurrences, angle/pas, axe.</div><div class="ex">« 8 trous à 45° sur un cercle de boulonnage Ø80 »</div></div>
+      <div class="gloss-item"><div class="term">Répétition rectangulaire</div><div class="syn">répétition rectangulaire · grille · réseau de trous · rangées et colonnes</div><div class="desc">Répète une feature en lignes/colonnes. <em>Param :</em> nb colonnes×rangées, espacements X/Y.</div><div class="ex">« 6 trous en grille 3×2, espacement 60/80 mm »</div></div>
+      <div class="gloss-item"><div class="term">Symétrie / Miroir</div><div class="syn">symétrie · miroir · image miroir · duplication symétrique</div><div class="desc">Copie miroir d'une feature/corps par rapport à un plan. <em>Param :</em> plan de symétrie.</div><div class="ex">« dupliquer la patte en miroir / plan milieu »</div></div>
+      <div class="gloss-item"><div class="term">Congé</div><div class="syn">congé · arrondi d'arête · raccordement · rayon de congé · fillet</div><div class="desc">Arrondit les arêtes vives avec un rayon constant. <em>Param :</em> rayon, arêtes/propagation.</div><div class="ex">« congés R3 sur toutes les arêtes verticales »</div></div>
+      <div class="gloss-item"><div class="term">Chanfrein</div><div class="syn">chanfrein · biseau · 45 degrés · entrée de trou</div><div class="desc">Coupe les arêtes vives selon un angle. <em>Param :</em> distance, angle, arêtes.</div><div class="ex">« chanfreins 1×45° sur l'entrée de l'alésage »</div></div>
+      <div class="gloss-item"><div class="term">Filetage / Taraudage</div><div class="syn">taraudage · filetage · M6 M8 M10 M12 · pas de vis · intérieur / extérieur</div><div class="desc">Ajoute un filetage/taraudage sur surface cylindrique. <em>Param :</em> norme, pas, profondeur.</div><div class="ex">« un taraudage M8 pas 1,25 sur 16 mm »</div></div>
+      <div class="gloss-item"><div class="term">Dépouille</div><div class="syn">dépouille · angle de démoulage · inclinaison de face · draft</div><div class="desc">Incline une face pour le démoulage. <em>Param :</em> angle, direction de tirage, faces.</div><div class="ex">« dépouille 3° sur les faces latérales »</div></div>
+      <div class="gloss-item"><div class="term">Plan de référence</div><div class="syn">plan décalé · plan à distance · plan parallèle · plan incliné</div><div class="desc">Crée un plan de travail personnalisé. <em>Param :</em> plan de réf., offset (mm) ou angle (°).</div><div class="ex">« un plan // XY décalé de 45 mm vers le haut »</div></div>
+      <div class="gloss-item"><div class="term">Paramètre piloté</div><div class="syn">paramètre · cote pilotée · dimension variable · formule</div><div class="desc">Crée des paramètres nommés pilotant les cotes (modif globale). <em>Param :</em> nom, valeur, unité.</div><div class="ex">« piloter les cotes par Longueur, Largeur, Hauteur »</div></div>
+    </div>
+
+    <div class="sep-scan"></div>
+
+    <!-- EKL GLOSSARY -->
+    <h3>EKL — Règles et vérifications</h3>
+    <div class="glass-panel">
+      <div class="gloss-item"><div class="term">Règle de conception</div><div class="syn">règle · contrainte de conception · règle paramétrique · logique conditionnelle</div><div class="desc">Déclenche des actions sur les paramètres lors d'une mise à jour. <em>Param :</em> conditions si…alors, message.</div><div class="ex">« ajuster l'épaisseur si la longueur dépasse 200 mm »</div></div>
+      <div class="gloss-item"><div class="term">Vérification / Contrôle qualité</div><div class="syn">vérification · contrôle · check · audit · conformité · validation</div><div class="desc">Vérifie des critères géométriques/dimensionnels et signale les écarts. <em>Param :</em> critères min/max, seuils.</div><div class="ex">« vérifier que tous les congés &gt; 1,5 mm »</div></div>
+      <div class="gloss-item"><div class="term">Table de configuration / Variantes</div><div class="syn">design table · variantes · familles de pièces · taille S/M/L</div><div class="desc">Pilote les dimensions depuis un Excel (switch entre configs). <em>Param :</em> fichier, colonnes=params, lignes=configs.</div><div class="ex">« appliquer la taille depuis un fichier de configs Excel »</div></div>
+      <div class="gloss-item"><div class="term">Réaction sur événement</div><div class="syn">réaction · déclenchement sur modification · synchronisation automatique</div><div class="desc">Exécute une action EKL en réponse à la modif d'une feature/paramètre. <em>Param :</em> feature déclencheuse, action.</div><div class="ex">« quand le Pad change, recalculer la profondeur de poche »</div></div>
+    </div>
+
+    <div class="sep-scan"></div>
+
+    <!-- EHI GLOSSARY -->
+    <h3>EHI — Harnais et câblage</h3>
+    <div class="glass-panel">
+      <div class="gloss-item"><div class="term">DMU (Digital Mock-Up)</div><div class="syn">.step · .stp · .catproduct</div><div class="desc">Maquette numérique 3D d'un environnement d'intégration. FastCAD extrait la boîte englobante et les composants, génère un routage évitant les volumes d'encombrement (section <code>04 _ Environnement DMU</code>).</div></div>
+      <div class="gloss-item"><div class="term">CATProduct d'environnement</div><div class="syn">.catproduct (lecture seule)</div><div class="desc">Assemblage multi-pièces utilisé comme référence spatiale. <em>Extrait :</em> composants nommés, contraintes (Contact, Coincidence, Offset, Angle) → topologie pour points de passage réalistes.</div></div>
+      <div class="gloss-item"><div class="term">Point de passage 3D</div><div class="syn">point de routage · waypoint · routing point · point 3D · guidage</div><div class="desc">Nœud de passage obligatoire (via <code>HybridShapeFactory</code>). <em>Param :</em> X/Y/Z mm, offset sécurité ≥ 20 mm / encombrements.</div><div class="ex">« un point de passage X=150, Y=50, Z=80 au-dessus du boîtier »</div></div>
+      <div class="gloss-item"><div class="term">Faisceau / Tronçon</div><div class="syn">faisceau · tronçon · loom · bundle · harnais principal · segment</div><div class="desc">Tronçon de câblage entre deux points. <em>Param :</em> diamètre, longueur, rayon courbure min, protection, référence.</div><div class="ex">« un faisceau Ø12 mm sur 500 mm »</div></div>
+      <div class="gloss-item"><div class="term">Bifurcation / Nœud Y ou T</div><div class="syn">bifurcation · nœud · fourche · dérivation · ramification · Y · T · étoile</div><div class="desc">Point physique où plusieurs tronçons se rejoignent. <em>Param :</em> position sur le tronc, branches issues.</div><div class="ex">« une bifurcation en Y à 250 mm du départ »</div></div>
+      <div class="gloss-item"><div class="term">Connecteur</div><div class="syn">connecteur · prise · embase · D38999 · Deutsch · Amphenol · broches</div><div class="desc">Connecteur électrique en bout de faisceau. <em>Param :</em> référence catalogue, type, genre M/F, nb broches.</div><div class="ex">« un connecteur circulaire 37 broches mâle »</div></div>
+      <div class="gloss-item"><div class="term">Support de fixation</div><div class="syn">support · clip · collier · serre-câble · attache · bride de maintien</div><div class="desc">Élément de fixation positionné sur un tronçon. <em>Param :</em> position (mm depuis départ), type, espacement.</div><div class="ex">« deux clips à 100 mm et 400 mm »</div></div>
+      <div class="gloss-item"><div class="term">Protection / Gaine</div><div class="syn">gaine · blindage · tresse · conduit ondulé · thermorétractable · spiralée · ruban</div><div class="desc">Protection physique sur tout/partie d'un tronçon. <em>Types :</em> blindage CEM, thermo (étanchéité), ondulé (flexion), ruban (léger), rigide (max).</div><div class="ex">« blindage sur le tronc, thermo sur les branches »</div></div>
+      <div class="gloss-item"><div class="term">Fil électrique</div><div class="syn">fil · conducteur · âme · signal · AWG · mm²</div><div class="desc">Conducteur individuel dans un faisceau. <em>Param :</em> n° de fil, calibre (AWG/mm²), couleur, type signal (28VDC, GND, ARINC429, RS422).</div><div class="ex">« un fil 28 VDC rouge, AWG22 »</div></div>
+    </div>
+
+    <div class="sep-scan"></div>
+
+    <!-- RETRO FORMATS GLOSSARY -->
+    <h3>Formats d'entrée — Rétro-ingénierie</h3>
+    <div class="glass-panel tight">
+      <table>
+        <tr><th>Format</th><th>Extension</th><th>Standard / Origine</th><th>Données extraites</th></tr>
+        <tr><td><strong>STEP / STP</strong></td><td><code>.step .stp</code></td><td>ISO 10303 (AP214/242)</td><td>PRODUCT, CARTESIAN_POINT, LENGTH_MEASURE, CLOSED_SHELL, ADVANCED_FACE</td></tr>
+        <tr><td><strong>CATPart</strong></td><td><code>.catpart</code></td><td>CATIA V5/V6 (ZIP+XML)</td><td>Pad, Pocket, Shaft, Groove, Hole, Fillet, Chamfer, CircPattern, RectPattern, Mirror, Shell, Sweep, Loft + paramètres</td></tr>
+        <tr><td><strong>CATProduct</strong></td><td><code>.catproduct</code></td><td>CATIA V5/V6 (ZIP+XML)</td><td>Component, Instance, Reference + contraintes Contact/Coincidence/Offset/Angle</td></tr>
+        <tr><td><strong>IGES</strong></td><td><code>.igs .iges</code></td><td>IGES</td><td><span class="pill pill-magma">Non supporté</span> — convertir en STEP avant import</td></tr>
+      </table>
+    </div>
+
+    <div class="sep-scan"></div>
+
+    <!-- DRAWING GLOSSARY -->
+    <h3>Mise en plan — CATDrawing</h3>
+    <div class="glass-panel">
+      <div class="gloss-item"><div class="term">CATDrawing</div><div class="syn">CATIA.Documents.Add("Drawing") · DrawingDocument</div><div class="desc">Document de dessin technique <code>.CATDrawing</code>. Section <code>05 _ Mise en plan</code> génère un script créant un CATDrawing depuis CATPart/CATProduct/STEP. Norme ISO (<code>catISO</code>) par défaut.</div></div>
+      <div class="gloss-item"><div class="term">DrawingSheet</div><div class="syn">oDrawing.Sheets.Item(1)</div><div class="desc">Feuille de dessin contenant vues, cartouche, annotations. <em>Param :</em> format A0–A4, orientation, échelle générale.</div></div>
+      <div class="gloss-item"><div class="term">Vues projetées</div><div class="syn">vue de face · dessus · profil · isométrique · projection orthogonale</div><div class="desc">Projections 2D orthogonales du modèle 3D. Face=YZ, Dessus=XY, Profil=ZX. <em>API :</em> <code>oSheet.Views.AddDetail</code> ou vues génératives.</div></div>
+      <div class="gloss-item"><div class="term">Cartouche</div><div class="syn">titre · title block · nomenclature · cadre de dessin</div><div class="desc">Zone normalisée bas-droite : nom pièce, date, révision, auteur, société. <em>Accès :</em> <code>oSheet.DrawingComponents</code>.</div></div>
+      <div class="gloss-item"><div class="term">Norme ISO</div><div class="syn">catISO · oDrawing.Standard = catISO</div><div class="desc">Convention européenne (1er dièdre), tolérances géométriques, flèches conformes ISO 128 / ISO 129.</div></div>
+    </div>
+  </section>
+
+  <footer style="text-align:center;padding:4rem 0 2rem;opacity:0.35;">
+    <h5>FastCAD // CATScript-AI // PoC v0.2 — Phase 2</h5>
+    <p style="font-size:0.75rem;margin-top:0.5rem;">Charte Obsidian · STYLING_REFERENCE · Généré le 2026-06-07</p>
+  </footer>
+
+</div>
+
+<script>
+/* ── MERMAID INIT ─────────────────────────────────────────────── */
+mermaid.initialize({
+  startOnLoad: true,
+  theme: 'base',
+  themeVariables: {
+    background:'#010204',
+    primaryColor:'#0a0e14',
+    primaryTextColor:'#ffffff',
+    primaryBorderColor:'#FF5F00',
+    lineColor:'rgba(255,255,255,0.35)',
+    secondaryColor:'#0a0e14',
+    tertiaryColor:'#0a0e14',
+    fontFamily:'Inter, sans-serif',
+    fontSize:'13px',
+    mainBkg:'#0a0e14',
+    nodeBorder:'rgba(255,255,255,0.25)',
+    clusterBkg:'rgba(255,255,255,0.02)',
+    clusterBorder:'rgba(255,255,255,0.12)',
+    titleColor:'#00A3FF',
+    edgeLabelBackground:'#010204',
+    actorBkg:'#0a0e14',
+    actorBorder:'#00A3FF',
+    actorTextColor:'#fff',
+    signalColor:'rgba(255,255,255,0.5)',
+    signalTextColor:'#cfe',
+    labelBoxBkgColor:'#0a0e14',
+    labelBoxBorderColor:'#FF5F00',
+    pie1:'#00A3FF',pie2:'#FF5F00',pie3:'#7CFC00',pie4:'#FF69B4',pie5:'#FFD700',pie6:'#9370DB',
+    pieTitleTextSize:'15px',pieSectionTextSize:'12px',pieStrokeColor:'#010204'
+  }
+});
+
+/* ── TABS ─────────────────────────────────────────────────────── */
+document.querySelectorAll('.tab-trigger').forEach(t => {
+  t.addEventListener('click', () => {
+    const tab = t.dataset.tab;
+    document.querySelectorAll('.tab-trigger').forEach(x => x.classList.remove('active'));
+    document.querySelectorAll('.tab-panel').forEach(x => x.classList.remove('active'));
+    t.classList.add('active');
+    document.getElementById('tab-' + tab).classList.add('active');
+    if (tab === 'kvg' && !window._kvgDrawn) { window._kvgDrawn = true; setTimeout(drawKVG, 60); }
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  });
+});
+
+/* ── KNOWLEDGE VECTOR GRAPH (D3 force, synthetic representative data) ─ */
+const FILE_COLORS = ['#00A3FF','#FF5F00','#7CFC00','#FF69B4','#FFD700','#00CED1','#FF6347','#9370DB','#20B2AA','#FF8C00'];
+const fileColorMap = new Map();
+function fileColor(name){ if(!fileColorMap.has(name)) fileColorMap.set(name, FILE_COLORS[fileColorMap.size % FILE_COLORS.length]); return fileColorMap.get(name); }
+
+// Sources mimicking the know-how corpus (PDF docs)
+const SOURCES = [
+  {file:'CATIA_CATScript_API.pdf', n:24, fresh:false, snippets:[
+    'oPad = shapeFactory.AddNewPad(sketch, height)','Pocket : AddNewPocket profondeur borgne',
+    'AddNewShaft révolution 360° autour axe','HybridShapeFactory point cartésien X,Y,Z',
+    'CircPattern répartition angulaire régulière','Fillet rayon constant propagation arêtes',
+    'Mirror plan de symétrie PartBody','RectPattern rangées colonnes espacement']},
+  {file:'EKL_Knowledge_Advisor.pdf', n:14, fresh:false, snippets:[
+    'Relations.CreateRule conditions if then','Check géométrique épaisseur min congé',
+    'Design Table import Excel configurations','Reaction OnModification recalcul paramètre',
+    'parcours features Body itération Pad']},
+  {file:'EHI_Harness_Routing.pdf', n:18, fresh:false, snippets:[
+    'ElecHarnessInstallation factory product','ElecBundleSegment SetDiameter AddRoutingPoint',
+    'connecteur D38999 broches mâle femelle','protection blindage tresse CEM gaine thermo',
+    'support clip fixation espacement tronc','bifurcation noeud étoile branches']},
+  {file:'Reverse_Engineering_STEP.pdf', n:12, fresh:true, snippets:[
+    'STEP ISO 10303 CARTESIAN_POINT entités','CATPart ZIP XML arbre de construction',
+    'CATProduct composants contraintes assemblage','bounding box extraction dimensions mm']},
+  {file:'Drawing_ISO_Standard.pdf', n:11, fresh:false, snippets:[
+    'DrawingDocument catISO premier dièdre','vues projetées face dessus profil YZ XY ZX',
+    'cartouche DrawingComponents nom date','GenerateDimensions cotation automatique']},
+  {file:'Sheet_Metal_Design.pdf', n:11, fresh:true, snippets:[
+    'SheetMetal Wall tôlerie épaisseur pliage','Bend rayon de pliage angle développé',
+    'flange bordure tôle SMD parameters','unfold dépliage tôlerie longueur développée']}
+];
+
+function buildKVGData(){
+  const nodes = [], edges = [];
+  let id = 0;
+  const now = Date.now();
+  SOURCES.forEach((s, si) => {
+    const base = id;
+    for (let k = 0; k < s.n; k++){
+      nodes.push({
+        id: 'n'+id,
+        label: s.snippets[k % s.snippets.length],
+        source: s.file,
+        page: 1 + (k % 9),
+        ingested_at: s.fresh ? new Date(now - 2*24*3600*1000).toISOString() : new Date(now - 90*24*3600*1000).toISOString()
+      });
+      id++;
+    }
+    // intra-cluster edges (dense, high similarity)
+    for (let a = base; a < id; a++){
+      for (let b = a+1; b < id; b++){
+        if (Math.random() < 0.28) edges.push({source:'n'+a, target:'n'+b, weight: +(0.65 + Math.random()*0.3).toFixed(3)});
+      }
+    }
+  });
+  // a few inter-cluster bridges
+  const bridges = [[0,38],[5,52],[20,70],[39,75],[12,60]];
+  bridges.forEach(([a,b]) => { if(nodes[a]&&nodes[b]) edges.push({source:nodes[a].id, target:nodes[b].id, weight:0.66}); });
+  return {nodes, edges};
+}
+
+function updateKVGLegend(nodes){
+  const seen = [...new Set(nodes.map(n => n.source))];
+  const el = document.getElementById('kvg-legend-items');
+  el.innerHTML = '<div class="legend-item"><div class="legend-dot legend-fresh"></div><span>Ingéré &lt; 7 jours</span></div>';
+  seen.forEach(f => {
+    const d = document.createElement('div');
+    d.className = 'legend-item';
+    d.innerHTML = `<div class="legend-dot" style="background:${fileColor(f)}"></div><span style="max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${f}</span>`;
+    el.appendChild(d);
+  });
+}
+
+function isFresh(d){ return d.ingested_at && (Date.now() - Date.parse(d.ingested_at) < 7*24*3600*1000); }
+
+function drawKVG(){
+  const {nodes, edges} = buildKVGData();
+  const svgEl = document.getElementById('kvg-svg');
+  const container = svgEl.parentElement;
+  const W = container.offsetWidth || 1000, H = container.offsetHeight || 620;
+  svgEl.innerHTML = '';
+  const tooltip = document.getElementById('kvg-tooltip');
+
+  const degMap = new Map();
+  edges.forEach(e => { degMap.set(e.source,(degMap.get(e.source)||0)+1); degMap.set(e.target,(degMap.get(e.target)||0)+1); });
+  const radius = d => 5 + Math.min((degMap.get(d.id)||0)*1.2, 10);
+
+  const svg = d3.select(svgEl).attr('viewBox',`0 0 ${W} ${H}`)
+    .call(d3.zoom().scaleExtent([0.1,6]).on('zoom', e => g.attr('transform', e.transform)));
+  const g = svg.append('g');
+
+  const link = g.append('g').selectAll('line').data(edges).enter().append('line')
+    .attr('stroke','rgba(255,255,255,0.12)').attr('stroke-width', d => Math.max(0.5, d.weight*2));
+
+  const nodeG = g.append('g').selectAll('g.node').data(nodes).enter().append('g')
+    .attr('class','node').style('cursor','pointer')
+    .on('click',(ev,d)=>{ ev.stopPropagation();
+      const color = isFresh(d) ? '#FFD700' : fileColor(d.source);
+      const si = document.getElementById('kvg-info-src'); si.style.color = color; si.textContent = d.source;
+      document.getElementById('kvg-info-meta').textContent = 'Page ' + d.page + (isFresh(d) ? ' · ✦ RÉCENT' : '');
+      document.getElementById('kvg-info-body').textContent = d.label;
+      document.getElementById('kvg-info').classList.add('visible');
+    })
+    .on('mouseover',(ev,d)=>{ tooltip.innerHTML = `<strong style="color:${isFresh(d)?'#FFD700':fileColor(d.source)}">${d.source}</strong> p.${d.page}${isFresh(d)?' <span style="color:#FFD700">✦</span>':''}`; tooltip.style.display='block'; })
+    .on('mousemove',ev=>{ tooltip.style.left=(ev.clientX+14)+'px'; tooltip.style.top=(ev.clientY-10)+'px'; })
+    .on('mouseout',()=>{ tooltip.style.display='none'; })
+    .call(d3.drag()
+      .on('start',(ev,d)=>{ if(!ev.active) sim.alphaTarget(0.3).restart(); d.fx=d.x; d.fy=d.y; })
+      .on('drag',(ev,d)=>{ d.fx=ev.x; d.fy=ev.y; })
+      .on('end',(ev,d)=>{ if(!ev.active) sim.alphaTarget(0); d.fx=null; d.fy=null; }));
+
+  nodeG.append('circle').attr('r', radius)
+    .attr('fill', d => isFresh(d)?'#FFD700':fileColor(d.source))
+    .attr('stroke', d => isFresh(d)?'#FFD700':'rgba(0,0,0,0.5)')
+    .attr('stroke-width', d => isFresh(d)?3:1)
+    .attr('class', d => isFresh(d)?'node-fresh':'');
+
+  const sim = d3.forceSimulation(nodes)
+    .force('link', d3.forceLink(edges).id(d=>d.id).distance(70).strength(0.35))
+    .force('charge', d3.forceManyBody().strength(-120))
+    .force('center', d3.forceCenter(W/2, H/2))
+    .force('collision', d3.forceCollide(d => radius(d)+6))
+    .on('tick', () => {
+      link.attr('x1',d=>d.source.x).attr('y1',d=>d.source.y).attr('x2',d=>d.target.x).attr('y2',d=>d.target.y);
+      nodeG.attr('transform', d => `translate(${d.x??0},${d.y??0})`);
+    });
+
+  svgEl.addEventListener('click', e => { if(e.target.tagName==='svg') document.getElementById('kvg-info').classList.remove('visible'); });
+  updateKVGLegend(nodes);
+}
+</script>
+</body>
+</html>
