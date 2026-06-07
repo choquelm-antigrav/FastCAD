@@ -1138,7 +1138,7 @@ mindmap
 <script>
 /* ── MERMAID INIT ─────────────────────────────────────────────── */
 mermaid.initialize({
-  startOnLoad: true,
+  startOnLoad: false,
   theme: 'base',
   themeVariables: {
     background:'#010204',
@@ -1168,6 +1168,18 @@ mermaid.initialize({
   }
 });
 
+/* ── RENDU MERMAID PARESSEUX ───────────────────────────────────
+   Les diagrammes d'un conteneur en display:none obtiennent des
+   dimensions nulles (getBBox=0) → SVG cassé/invisible. On ne les
+   rend donc qu'une fois leur conteneur VISIBLE. */
+async function renderMermaidIn(container){
+  if (!container) return;
+  const nodes = [...container.querySelectorAll('.mermaid:not([data-processed])')];
+  if (!nodes.length) return;
+  try { await mermaid.run({ nodes }); }
+  catch (e) { console.error('Mermaid render error:', e); }
+}
+
 /* ── TABS ─────────────────────────────────────────────────────── */
 document.querySelectorAll('.tab-trigger').forEach(t => {
   t.addEventListener('click', () => {
@@ -1175,10 +1187,19 @@ document.querySelectorAll('.tab-trigger').forEach(t => {
     document.querySelectorAll('.tab-trigger').forEach(x => x.classList.remove('active'));
     document.querySelectorAll('.tab-panel').forEach(x => x.classList.remove('active'));
     t.classList.add('active');
-    document.getElementById('tab-' + tab).classList.add('active');
-    if (tab === 'kvg' && !window._kvgDrawn) { window._kvgDrawn = true; setTimeout(drawKVG, 60); }
+    const panel = document.getElementById('tab-' + tab);
+    panel.classList.add('active');
+    // Le panneau est désormais visible : rendre ses diagrammes (1 seule fois).
+    requestAnimationFrame(() => renderMermaidIn(panel));
+    if (tab === 'kvg' && !window._kvgDrawn) { window._kvgDrawn = true; setTimeout(drawKVG, 80); }
     window.scrollTo({ top: 0, behavior: 'smooth' });
   });
+});
+
+/* Rendu initial : hero (toujours visible) + onglet actif par défaut (Specification). */
+window.addEventListener('load', () => {
+  renderMermaidIn(document.querySelector('header.hero'));
+  renderMermaidIn(document.querySelector('.tab-panel.active'));
 });
 
 /* ── KNOWLEDGE VECTOR GRAPH (D3 force, synthetic representative data) ─ */
