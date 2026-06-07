@@ -366,7 +366,8 @@ flowchart TB
       <div class="glass-panel">
         <div class="mermaid">
 flowchart TB
-    P1["📄 Load PDF"]:::s --> P2["Extract text / page"]:::s
+    P1["📄 Load PDF"]:::s
+    P1 --> P2["Extract text / page"]:::s
     P2 --> P3["Chunk ≈500 tok<br/>overlap 50"]:::s
     P3 --> P4["Embed chunk"]:::s
     P4 --> P5[("ChromaDB<br/>+ metadata")]:::db
@@ -378,7 +379,8 @@ flowchart TB
       <div class="glass-panel">
         <div class="mermaid">
 flowchart TB
-    Q["Embed user query"]:::s --> R["Retrieve top-k (k=5)"]:::s
+    Q["Embed user query"]:::s
+    Q --> R["Retrieve top-k (k=5)"]:::s
     R --> B["Build prompt:<br/>system + chunks + query"]:::s
     B --> L["Call LLM API"]:::core
     L --> O["Script + source refs → UI"]:::s
@@ -657,7 +659,8 @@ flowchart LR
         <h4>Logique de Confiance</h4>
         <div class="mermaid">
 flowchart TB
-    S["max(score) des chunks"]:::s --> C1{"low_confidence<br/>flagué ?"}
+    S["max(score) des chunks"]:::s
+    S --> C1{"low_confidence<br/>flagué ?"}
     C1 -- Oui --> L["confidence = LOW"]:::low
     C1 -- Non --> C2{"max_score ≥ 0.7 ?"}
     C2 -- Oui --> H["confidence = HIGH"]:::high
@@ -672,7 +675,8 @@ flowchart TB
         <h4>Modèle de Données — Flux des schémas</h4>
         <div class="mermaid">
 flowchart TB
-    PG["page dict<br/>{page_number, text, source_file}"]:::s --> CK["chunk interne<br/>{chunk_id, source_file,<br/>page_number, content}"]:::s
+    PG["page dict<br/>{page_number, text, source_file}"]:::s
+    PG --> CK["chunk interne<br/>{chunk_id, source_file,<br/>page_number, content}"]:::s
     CK --> DB[("ChromaDB chunk<br/>id·embedding(384)<br/>document·metadata")]:::db
     DB --> RC["chunk récupéré<br/>{content, source_file,<br/>page_number, score}"]:::s
     RC --> RESP["GenerationResponse<br/>{script, sources[], confidence}"]:::core
@@ -772,7 +776,8 @@ confidence: ConfidenceLevel</pre>
       <div class="glass-panel">
         <div class="mermaid">
 flowchart TB
-    A["get_all_chunks(CHROMA_PATH)"]:::s --> B{"chunks ∅ ?"}
+    A["get_all_chunks(CHROMA_PATH)"]:::s
+    A --> B{"chunks vides ?"}
     B -- Oui --> Z["nodes=[], edges=[]"]:::low
     B -- Non --> C["embeddings → np.array"]:::s
     C --> D["Normalisation L2<br/>(cosine via dot product)"]:::s
@@ -850,8 +855,10 @@ pie showData
         <h4>Couverture des intégrations</h4>
         <div class="mermaid">
 flowchart TB
-    I1["INTEG-01<br/>Corps de pompe centrifuge"]:::core --> U1["UC-01·02·03·04·05<br/>07·08·09·10"]:::s
-    I2["INTEG-02<br/>Harnais baie avionique"]:::core2 --> U2["UC-16·17·18·19·20"]:::s
+    I1["INTEG-01<br/>Corps de pompe centrifuge"]:::core
+    I1 --> U1["UC-01·02·03·04·05<br/>07·08·09·10"]:::s
+    I2["INTEG-02<br/>Harnais baie avionique"]:::core2
+    I2 --> U2["UC-16·17·18·19·20"]:::s
     classDef core fill:#FF5F0022,stroke:#FF5F00,stroke-width:2px,color:#fff;
     classDef core2 fill:#00A3FF18,stroke:#00A3FF,stroke-width:2px,color:#fff;
     classDef s fill:#ffffff06,stroke:#ffffff33,color:#fff;
@@ -1023,7 +1030,7 @@ flowchart TB
         <h4>Domaines couverts</h4>
         <div class="mermaid">
 mindmap
-  root((FastCAD<br/>glossaire))
+  root((FastCAD glossaire))
     CATScript
       Solides
       Répétitions
